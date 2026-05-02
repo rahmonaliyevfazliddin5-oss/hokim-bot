@@ -35,7 +35,7 @@ export default function AdminLogin() {
           <Shield className="h-7 w-7 text-accent-foreground" />
         </div>
         <h1 className="text-2xl font-bold text-center mb-1">{t("admin.login_title")}</h1>
-        <p className="text-xs text-center text-muted-foreground mb-6">{t("admin.hint")}</p>
+        <p className="text-xs text-center text-muted-foreground mb-6">&nbsp;</p>
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-1.5">
             <Label>{t("admin.username")}</Label>

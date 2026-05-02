@@ -1,11 +1,35 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
+import { useEffect, useRef } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { useI18n } from "@/i18n/I18nProvider";
 
+const SECRET = "hokim";
+
 export function AppLayout() {
   const { t } = useI18n();
+  const nav = useNavigate();
+  const buf = useRef("");
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      buf.current = (buf.current + e.key.toLowerCase()).slice(-SECRET.length);
+      if (buf.current === SECRET) { buf.current = ""; nav("/admin/login"); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [nav]);
+
+  // Triple-click on year in footer also opens admin login (mobile escape hatch)
+  const clicks = useRef<number[]>([]);
+  const onYearClick = () => {
+    const now = Date.now();
+    clicks.current = [...clicks.current.filter(t => now - t < 1500), now];
+    if (clicks.current.length >= 5) { clicks.current = []; nav("/admin/login"); }
+  };
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full gradient-soft">
@@ -25,7 +49,7 @@ export function AppLayout() {
             <Outlet />
           </main>
           <footer className="border-t border-border/60 px-6 py-4 text-xs text-muted-foreground text-center">
-            {t("footer")}
+            <span onClick={onYearClick} className="cursor-default select-none">{t("footer")}</span>
           </footer>
         </div>
       </div>

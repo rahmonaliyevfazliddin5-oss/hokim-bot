@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { FileText, Clock, CheckCircle2, XCircle, Inbox, Eye } from "lucide-react";
+import { FileText, Clock, CheckCircle2, XCircle, Inbox, Eye, MapPin, ExternalLink, Sparkles } from "lucide-react";
 import { useI18n } from "@/i18n/I18nProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -41,24 +41,22 @@ export default function AdminDashboard() {
     rad_etildi: items.filter(i => i.status === "rad_etildi").length,
   };
 
+  const itemCats = (i: any): string[] => (i.categories?.length ? i.categories : [i.category]);
+
   const filtered = items.filter(i => {
     if (fStatus !== "all" && i.status !== fStatus) return false;
-    if (fCat !== "all" && i.category !== fCat) return false;
-    if (search && !(`${i.tracking_code} ${i.citizen_name} ${i.text}`).toLowerCase().includes(search.toLowerCase())) return false;
+    if (fCat !== "all" && !itemCats(i).includes(fCat)) return false;
+    if (search && !(`${i.tracking_code} ${i.citizen_name} ${i.text} ${i.district || ""} ${i.mahalla || ""}`).toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
   function openItem(it: any) {
-    setOpen(it);
-    setNewStatus(it.status);
-    setNotes(it.admin_notes || "");
+    setOpen(it); setNewStatus(it.status); setNotes(it.admin_notes || "");
   }
 
   async function save() {
     if (!open) return;
-    const { error } = await supabase.from("complaints").update({
-      status: newStatus, admin_notes: notes || null
-    }).eq("id", open.id);
+    const { error } = await supabase.from("complaints").update({ status: newStatus, admin_notes: notes || null }).eq("id", open.id);
     if (error) { toast.error(error.message); return; }
     await supabase.from("activity_logs").insert({
       action: "status_changed",
@@ -87,8 +85,7 @@ export default function AdminDashboard() {
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         {stats.map((s, i) => (
-          <motion.div key={s.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-            className="glass rounded-2xl p-5">
+          <motion.div key={s.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="glass rounded-2xl p-5">
             <div className={`h-9 w-9 rounded-lg flex items-center justify-center mb-3 ${s.color}`}>
               <s.icon className="h-5 w-5" />
             </div>
@@ -138,15 +135,23 @@ export default function AdminDashboard() {
               ) : filtered.map(it => (
                 <tr key={it.id} className="border-t border-border/60 hover:bg-secondary/40 transition-smooth">
                   <td className="px-4 py-3 font-mono text-xs font-semibold">{it.tracking_code}</td>
-                  <td className="px-4 py-3"><div className="font-medium">{it.citizen_name}</div><div className="text-xs text-muted-foreground">{it.citizen_phone}</div></td>
+                  <td className="px-4 py-3">
+                    <div className="font-medium">{it.citizen_name}</div>
+                    <div className="text-xs text-muted-foreground">{it.citizen_phone}</div>
+                    {it.district && <div className="text-[10px] text-muted-foreground">{it.district}{it.mahalla ? `, ${it.mahalla}` : ""}</div>}
+                  </td>
                   <td className="px-4 py-3 hidden md:table-cell max-w-xs truncate text-muted-foreground">{it.text}</td>
-                  <td className="px-4 py-3"><span className="rounded-md bg-secondary px-2 py-0.5 text-xs font-medium">{t(`category.${it.category}`)}</span></td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {itemCats(it).map(c => (
+                        <span key={c} className="rounded-md bg-accent/15 text-accent px-2 py-0.5 text-[10px] font-semibold">{t(`category.${c}`)}</span>
+                      ))}
+                    </div>
+                  </td>
                   <td className="px-4 py-3"><StatusBadge status={it.status} /></td>
                   <td className="px-4 py-3 hidden lg:table-cell text-xs text-muted-foreground">{dateFmt(it.created_at)}</td>
                   <td className="px-4 py-3 text-right">
-                    <Button size="sm" variant="ghost" onClick={() => openItem(it)}>
-                      <Eye className="h-4 w-4" />
-                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => openItem(it)}><Eye className="h-4 w-4" /></Button>
                   </td>
                 </tr>
               ))}
@@ -156,16 +161,49 @@ export default function AdminDashboard() {
       </div>
 
       <Dialog open={!!open} onOpenChange={v => !v && setOpen(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{open?.tracking_code}</DialogTitle>
-          </DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{open?.tracking_code}</DialogTitle></DialogHeader>
           {open && (
             <div className="space-y-4">
               <div className="text-sm">
-                <div className="text-xs text-muted-foreground mb-1">{open.citizen_name} — {open.citizen_phone}</div>
+                <div className="text-xs text-muted-foreground mb-1">
+                  {open.citizen_name} — {open.citizen_phone}
+                  {open.district && <span> · {open.district}{open.mahalla ? `, ${open.mahalla}` : ""}</span>}
+                </div>
+                {open.location && <div className="text-xs flex items-center gap-1 mb-2"><MapPin className="h-3 w-3" />{open.location}</div>}
+                {open.map_link && (
+                  <a href={open.map_link} target="_blank" rel="noreferrer" className="text-xs text-accent inline-flex items-center gap-1 mb-2"><ExternalLink className="h-3 w-3" />{t("admin.view_map")}</a>
+                )}
                 <p className="rounded-lg bg-secondary p-3 whitespace-pre-wrap">{open.text}</p>
               </div>
+
+              {open.category_details?.length > 0 && (
+                <div className="rounded-lg bg-accent/10 border border-accent/20 p-3">
+                  <div className="text-xs font-bold uppercase tracking-wider text-accent mb-2 flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" />{t("submit.ai_detected")}</div>
+                  <div className="space-y-1.5">
+                    {open.category_details.map((d: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="rounded bg-accent text-accent-foreground px-2 py-0.5 font-semibold">{t(`category.${d.category}`)}</span>
+                          {d.hits?.length > 0 && <span className="text-muted-foreground">→ {d.hits.join(", ")}</span>}
+                        </div>
+                        <span className="font-mono">{Math.round(d.confidence * 100)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {open.image_urls?.length > 0 && (
+                <div className="grid grid-cols-3 gap-2">
+                  {open.image_urls.map((u: string, i: number) => (
+                    <a key={i} href={u} target="_blank" rel="noreferrer" className="aspect-square rounded-lg overflow-hidden border border-border">
+                      <img src={u} alt="" className="w-full h-full object-cover" loading="lazy" />
+                    </a>
+                  ))}
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold uppercase tracking-wider">{t("admin.update_status")}</label>
                 <Select value={newStatus} onValueChange={setNewStatus}>

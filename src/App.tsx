@@ -10,6 +10,7 @@ import { AdminGuard } from "@/components/AdminGuard";
 import Home from "./pages/Home";
 import Submit from "./pages/Submit";
 import Track from "./pages/Track";
+import Chat from "./pages/Chat";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminStats from "./pages/AdminStats";
@@ -32,6 +33,7 @@ const App = () => (
                 <Route path="/" element={<Home />} />
                 <Route path="/submit" element={<Submit />} />
                 <Route path="/track" element={<Track />} />
+                <Route path="/chat" element={<Chat />} />
                 <Route path="/admin/login" element={<AdminLogin />} />
                 <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
                 <Route path="/admin/dashboard" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
