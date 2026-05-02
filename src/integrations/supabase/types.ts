@@ -14,7 +14,95 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      activity_logs: {
+        Row: {
+          action: string
+          actor: string | null
+          complaint_id: string | null
+          created_at: string
+          details: string | null
+          id: string
+        }
+        Insert: {
+          action: string
+          actor?: string | null
+          complaint_id?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+        }
+        Update: {
+          action?: string
+          actor?: string | null
+          complaint_id?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_logs_complaint_id_fkey"
+            columns: ["complaint_id"]
+            isOneToOne: false
+            referencedRelation: "complaints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      complaints: {
+        Row: {
+          admin_notes: string | null
+          ai_confidence: number | null
+          ai_response: string | null
+          category: string
+          citizen_name: string
+          citizen_phone: string
+          created_at: string
+          id: string
+          image_url: string | null
+          location: string | null
+          region: string | null
+          status: string
+          text: string
+          tracking_code: string
+          updated_at: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          ai_confidence?: number | null
+          ai_response?: string | null
+          category?: string
+          citizen_name: string
+          citizen_phone: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          location?: string | null
+          region?: string | null
+          status?: string
+          text: string
+          tracking_code: string
+          updated_at?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          ai_confidence?: number | null
+          ai_response?: string | null
+          category?: string
+          citizen_name?: string
+          citizen_phone?: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          location?: string | null
+          region?: string | null
+          status?: string
+          text?: string
+          tracking_code?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
