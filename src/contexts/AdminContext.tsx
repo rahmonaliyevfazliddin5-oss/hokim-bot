@@ -8,25 +8,28 @@ interface AdminCtx {
 
 const Ctx = createContext<AdminCtx | null>(null);
 
-const KEY = "hokim_admin";
+const KEY = "hokim_admin_session";
+// NOTE: MVP-level gate. For production use real auth.
+const ADMIN_USER = "admin";
+const ADMIN_PASS = "fazliddin123";
 
 export function AdminProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    setIsAdmin(localStorage.getItem(KEY) === "1");
+    setIsAdmin(sessionStorage.getItem(KEY) === "1");
   }, []);
 
   const login = (u: string, p: string) => {
-    if (u === "admin" && p === "admin123") {
-      localStorage.setItem(KEY, "1");
+    if (u === ADMIN_USER && p === ADMIN_PASS) {
+      sessionStorage.setItem(KEY, "1");
       setIsAdmin(true);
       return true;
     }
     return false;
   };
   const logout = () => {
-    localStorage.removeItem(KEY);
+    sessionStorage.removeItem(KEY);
     setIsAdmin(false);
   };
 

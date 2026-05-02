@@ -1,25 +1,43 @@
-// Simple keyword-based AI classifier (MVP). Extendable to real NLP later.
+// Multi-category keyword classifier. Detects ALL relevant categories in text.
 export type Category = "gaz" | "elektr" | "suv" | "chiqindi" | "yo_l" | "boshqa";
 
 const RULES: { cat: Category; keywords: string[] }[] = [
-  { cat: "gaz", keywords: ["gaz", "газ", "gas"] },
-  { cat: "elektr", keywords: ["elektr", "svet", "tok", "электр", "свет", "ток", "электричество"] },
-  { cat: "suv", keywords: ["suv", "сув", "вода", "water"] },
-  { cat: "chiqindi", keywords: ["chiqindi", "axlat", "ахлат", "чиқинди", "мусор"] },
-  { cat: "yo_l", keywords: ["yo'l", "yol", "yo‘l", "йўл", "дорог", "asfalt", "асфальт"] },
+  { cat: "gaz", keywords: ["gaz", "газ", "gas", "metan"] },
+  { cat: "elektr", keywords: ["elektr", "svet", "tok", "электр", "свет", "ток", "электричество", "lampochka", "rozetka", "naprajeniye"] },
+  { cat: "suv", keywords: ["suv", "сув", "вода", "water", "kanalizatsiya", "канализация", "ariq"] },
+  { cat: "chiqindi", keywords: ["chiqindi", "axlat", "ахлат", "чиқинди", "мусор", "tozalash"] },
+  { cat: "yo_l", keywords: ["yo'l", "yol", "yo‘l", "йўл", "дорог", "asfalt", "асфальт", "chuqur", "ko'cha", "kocha"] },
 ];
 
-export function classify(text: string): { category: Category; confidence: number } {
+export interface CategoryDetail {
+  category: Category;
+  confidence: number;
+  hits: string[];
+}
+
+export function classifyMulti(text: string): CategoryDetail[] {
   const lower = text.toLowerCase();
-  let best: { category: Category; confidence: number } = { category: "boshqa", confidence: 0.3 };
+  const out: CategoryDetail[] = [];
   for (const r of RULES) {
-    const hits = r.keywords.filter(k => lower.includes(k.toLowerCase())).length;
-    if (hits > 0) {
-      const conf = Math.min(0.95, 0.6 + hits * 0.15);
-      if (conf > best.confidence) best = { category: r.cat, confidence: conf };
+    const hits = r.keywords.filter((k) => lower.includes(k.toLowerCase()));
+    if (hits.length > 0) {
+      out.push({
+        category: r.cat,
+        confidence: Math.min(0.97, 0.6 + hits.length * 0.12),
+        hits,
+      });
     }
   }
-  return best;
+  if (out.length === 0) {
+    out.push({ category: "boshqa", confidence: 0.4, hits: [] });
+  }
+  // Sort by confidence
+  return out.sort((a, b) => b.confidence - a.confidence);
+}
+
+export function classify(text: string): { category: Category; confidence: number } {
+  const m = classifyMulti(text);
+  return { category: m[0].category, confidence: m[0].confidence };
 }
 
 export function generateTrackingCode(): string {
@@ -29,14 +47,22 @@ export function generateTrackingCode(): string {
   return `HK-${s}`;
 }
 
+const RESP_MAP: Record<Category, string> = {
+  gaz: "Gaz ta'minoti bo'limiga yo'naltiriladi.",
+  elektr: "Elektr tarmog'i bo'limiga yo'naltiriladi.",
+  suv: "Suv ta'minoti xizmatiga yo'naltiriladi.",
+  chiqindi: "Kommunal xizmat ko'rsatish bo'limiga yo'naltiriladi.",
+  yo_l: "Yo'l-transport bo'limiga yo'naltiriladi.",
+  boshqa: "Operator tomonidan ko'rib chiqiladi.",
+};
+
 export function autoResponse(category: Category): string {
-  const map: Record<Category, string> = {
-    gaz: "Murojaatingiz gaz ta'minoti bo'limiga yo'naltirildi.",
-    elektr: "Murojaatingiz elektr tarmog'i bo'limiga yo'naltirildi.",
-    suv: "Murojaatingiz suv ta'minoti xizmatiga yo'naltirildi.",
-    chiqindi: "Murojaatingiz kommunal xizmat ko'rsatish bo'limiga yo'naltirildi.",
-    yo_l: "Murojaatingiz yo'l-transport bo'limiga yo'naltirildi.",
-    boshqa: "Murojaatingiz operator tomonidan ko'rib chiqiladi.",
-  };
-  return map[category];
+  return RESP_MAP[category];
+}
+
+export function autoResponseMulti(cats: CategoryDetail[]): string {
+  if (cats.length === 0) return RESP_MAP.boshqa;
+  if (cats.length === 1) return RESP_MAP[cats[0].category];
+  const labels = cats.map((c) => RESP_MAP[c.category].replace(" yo'naltiriladi.", ""));
+  return `Murojaatingiz quyidagi bo'limlarga yo'naltirildi: ${labels.join(", ")}.`;
 }
