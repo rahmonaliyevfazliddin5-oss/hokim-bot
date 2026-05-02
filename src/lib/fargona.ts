@@ -1,0 +1,20 @@
+// Farg'ona viloyati: shaharlar va tumanlar + asosiy mahallalar
+export const FARGONA_DISTRICTS: { id: string; name: string; mahallas: string[] }[] = [
+  { id: "fargona_shahar", name: "Farg'ona shahri", mahallas: ["Markaz", "Yangi Hayot", "Do'stlik", "Mustaqillik", "Bog'ishamol", "Kelajak"] },
+  { id: "margilon", name: "Marg'ilon shahri", mahallas: ["Toshloq", "Marg'ilon Markaz", "Bog'iqaytar", "Ipakchi"] },
+  { id: "qoqon", name: "Qo'qon shahri", mahallas: ["Qo'qon Markaz", "Furqat", "Muqimiy", "Qatortol"] },
+  { id: "quvasoy", name: "Quvasoy shahri", mahallas: ["Quvasoy Markaz", "Sement", "Yangi Quvasoy"] },
+  { id: "oltiariq", name: "Oltiariq tumani", mahallas: ["Oltiariq", "Tinchlik", "Navbahor"] },
+  { id: "bagdod", name: "Bag'dod tumani", mahallas: ["Bag'dod", "Yangiqishloq"] },
+  { id: "beshariq", name: "Beshariq tumani", mahallas: ["Beshariq", "Markaz"] },
+  { id: "buvayda", name: "Buvayda tumani", mahallas: ["Buvayda", "Yangiyo'l"] },
+  { id: "dangara", name: "Dang'ara tumani", mahallas: ["Dang'ara", "Paxtaobod"] },
+  { id: "fargona_tuman", name: "Farg'ona tumani", mahallas: ["Vodil", "Yordon", "Chimyon"] },
+  { id: "furqat", name: "Furqat tumani", mahallas: ["Furqat", "Navro'z"] },
+  { id: "quva", name: "Quva tumani", mahallas: ["Quva", "Aravon"] },
+  { id: "rishton", name: "Rishton tumani", mahallas: ["Rishton", "Kulollar"] },
+  { id: "sox", name: "So'x tumani", mahallas: ["So'x", "Hushyor"] },
+  { id: "toshloq", name: "Toshloq tumani", mahallas: ["Toshloq", "Yangi Toshloq"] },
+  { id: "uzbekiston", name: "O'zbekiston tumani", mahallas: ["O'zbekiston", "Mustaqillik"] },
+  { id: "yozyovon", name: "Yozyovon tumani", mahallas: ["Yozyovon", "Paxtazor"] },
+];
