@@ -54,13 +54,21 @@ export type Database = {
           admin_notes: string | null
           ai_confidence: number | null
           ai_response: string | null
+          categories: string[]
           category: string
+          category_details: Json
           citizen_name: string
           citizen_phone: string
           created_at: string
+          district: string | null
           id: string
           image_url: string | null
+          image_urls: string[]
+          latitude: number | null
           location: string | null
+          longitude: number | null
+          mahalla: string | null
+          map_link: string | null
           region: string | null
           status: string
           text: string
@@ -71,13 +79,21 @@ export type Database = {
           admin_notes?: string | null
           ai_confidence?: number | null
           ai_response?: string | null
+          categories?: string[]
           category?: string
+          category_details?: Json
           citizen_name: string
           citizen_phone: string
           created_at?: string
+          district?: string | null
           id?: string
           image_url?: string | null
+          image_urls?: string[]
+          latitude?: number | null
           location?: string | null
+          longitude?: number | null
+          mahalla?: string | null
+          map_link?: string | null
           region?: string | null
           status?: string
           text: string
@@ -88,13 +104,21 @@ export type Database = {
           admin_notes?: string | null
           ai_confidence?: number | null
           ai_response?: string | null
+          categories?: string[]
           category?: string
+          category_details?: Json
           citizen_name?: string
           citizen_phone?: string
           created_at?: string
+          district?: string | null
           id?: string
           image_url?: string | null
+          image_urls?: string[]
+          latitude?: number | null
           location?: string | null
+          longitude?: number | null
+          mahalla?: string | null
+          map_link?: string | null
           region?: string | null
           status?: string
           text?: string
