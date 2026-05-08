@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { messages, lang } = await req.json();
+    const { messages, lang, hint_persona } = await req.json();
     if (!Array.isArray(messages)) {
       return new Response(JSON.stringify({ error: "messages required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
-        messages: [{ role: "system", content: buildSystemPrompt(lang || "uz") }, ...messages],
+        messages: [{ role: "system", content: buildSystemPrompt(lang || "uz", hint_persona) }, ...messages],
         stream: true,
       }),
     });
