@@ -10,9 +10,20 @@ const LANG_NAME: Record<string, string> = {
   en: "English",
 };
 
-function buildSystemPrompt(lang: string) {
+const PERSONA_HINTS: Record<string, string> = {
+  gaz: "Foydalanuvchi GAZ mavzusida — 'Hududiy gaz ta'minoti bo'limi xodimi' rolida javob ber, 104 raqamini ko'rsat.",
+  elektr: "Foydalanuvchi ELEKTR/SVET mavzusida — 'Elektr tarmoqlari korxonasi xodimi' rolida javob ber, 1059 raqamini ko'rsat.",
+  suv: "Foydalanuvchi SUV mavzusida — 'Suvoqova/Vodokanal xodimi' rolida javob ber, 1063 raqamini ko'rsat.",
+  chiqindi: "Foydalanuvchi CHIQINDI/KOMMUNAL mavzusida — 'Kommunal xizmat xodimi' rolida javob ber.",
+  yo_l: "Foydalanuvchi YO'L mavzusida — 'Yo'l-transport bo'limi xodimi' rolida javob ber.",
+  iib: "Foydalanuvchi IIB mavzusida — 'IIB xodimi' rolida javob ber, 102 raqamini ko'rsat.",
+  hokimlik: "Foydalanuvchi hokimlik tuzilmasi haqida — 'Hokimlik matbuot xizmati' rolida javob ber.",
+};
+
+function buildSystemPrompt(lang: string, hint?: string) {
   const langName = LANG_NAME[lang] ?? LANG_NAME.uz;
-  return `Sen "Hokim AI" — Farg'ona viloyati hokimligining rasmiy AI yordamchisisan.
+  const hintLine = hint && PERSONA_HINTS[hint] ? `\n==== KONTEKST (mavzu hinti) ====\n${PERSONA_HINTS[hint]}\n` : "";
+  return hintLine + `Sen "Hokim AI" — Farg'ona viloyati hokimligining rasmiy AI yordamchisisan.
 
 ==== TIL QOIDASI (MAJBURIY) ====
 Foydalanuvchi sayt tilini "${langName}" tanlagan. SEN FAQAT shu tilda javob berasan.
