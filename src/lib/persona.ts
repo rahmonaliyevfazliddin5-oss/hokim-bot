@@ -1,4 +1,14 @@
 import { Flame, Zap, Droplet, Trash2, Construction, Shield, Building2, HeartPulse, Scale, Bot, LucideIcon } from "lucide-react";
+import gazImg from "@/assets/avatars/gaz.jpg";
+import elektrImg from "@/assets/avatars/elektr.jpg";
+import suvImg from "@/assets/avatars/suv.jpg";
+import iibImg from "@/assets/avatars/iib.jpg";
+import chiqindiImg from "@/assets/avatars/chiqindi.jpg";
+import yolImg from "@/assets/avatars/yol.jpg";
+import hokimImg from "@/assets/avatars/hokim.jpg";
+import tibbiyImg from "@/assets/avatars/tibbiy.jpg";
+import psixologImg from "@/assets/avatars/psixolog.jpg";
+import huquqiyImg from "@/assets/avatars/huquqiy.jpg";
 
 export type PersonaKey =
   | "gaz" | "elektr" | "suv" | "chiqindi" | "yo_l"
