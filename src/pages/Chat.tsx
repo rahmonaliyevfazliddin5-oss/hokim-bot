@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Send, Sparkles, MessageSquare, Phone, Users, X } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Send, Sparkles, MessageSquare, Phone, Users, X, Copy, MessageCircle, Volume2, VolumeX, Mic } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,35 +17,89 @@ interface Msg { role: "user" | "assistant"; content: string; persona?: PersonaKe
 
 const PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 const FN_URL = `https://${PROJECT_ID}.supabase.co/functions/v1/ai-chat`;
+const STORAGE_KEY = "hokim_chat_history_v2";
+const ACTIVE_PERSONA_KEY = "hokim_chat_active_persona_v1";
 
 const langKeyOf = (lang: Lang) =>
   (lang === "ru" ? "ru" : lang === "uz_cyrl" ? "uz_cyrl" : "uz") as "uz" | "uz_cyrl" | "ru";
 
-function HotlineButton({ phone, label }: { phone: string; label?: string }) {
+const ttsLangOf = (lang: Lang) =>
+  lang === "ru" ? "ru-RU" : "uz-UZ";
+
+/** Strip markdown so TTS reads natural prose */
+function plainText(md: string) {
+  return md
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/`[^`]*`/g, "")
+    .replace(/!\[[^\]]*]\([^)]*\)/g, "")
+    .replace(/\[([^\]]+)]\([^)]+\)/g, "$1")
+    .replace(/[*_#>~`]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Hotline action menu: call / copy / SMS */
+function HotlineActions({ phone, lang, label, compact = false }: { phone: string; lang: Lang; label?: string; compact?: boolean }) {
+  const lk = langKeyOf(lang);
+  const t = {
+    call:  { uz: "Qo'ng'iroq", uz_cyrl: "Қўнғироқ", ru: "Звонок" }[lk],
+    copy:  { uz: "Nusxa", uz_cyrl: "Нусха", ru: "Копия" }[lk],
+    sms:   { uz: "SMS", uz_cyrl: "СМС", ru: "СМС" }[lk],
+    copied:{ uz: "Nusxalandi", uz_cyrl: "Нусхаланди", ru: "Скопировано" }[lk],
+  };
+  const onCopy = async () => {
+    try { await navigator.clipboard.writeText(phone); toast.success(`${t.copied}: ${phone}`); }
+    catch { toast.error("clipboard"); }
+  };
   return (
-    <a
-      href={`tel:${phone}`}
-      className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground shadow-sm hover:scale-105 active:scale-95 transition-transform"
-    >
-      <Phone className="h-3.5 w-3.5" /> {label ? `${label}: ` : ""}{phone}
-    </a>
+    <div className="inline-flex flex-wrap items-center gap-1.5">
+      <a href={`tel:${phone}`}
+         className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-2 text-xs font-bold text-primary-foreground shadow-sm hover:scale-105 active:scale-95 transition-transform min-h-[36px]">
+        <Phone className="h-3.5 w-3.5" /> {label ? `${label}: ` : ""}{phone}
+      </a>
+      {!compact && (
+        <>
+          <button onClick={onCopy}
+            className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-2 text-[11px] font-semibold hover:bg-secondary/70 active:scale-95 transition-transform min-h-[36px]"
+            aria-label={t.copy}>
+            <Copy className="h-3 w-3" /> {t.copy}
+          </button>
+          <a href={`sms:${phone}`}
+            className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-2 text-[11px] font-semibold hover:bg-secondary/70 active:scale-95 transition-transform min-h-[36px]">
+            <MessageCircle className="h-3 w-3" /> {t.sms}
+          </a>
+        </>
+      )}
+    </div>
   );
 }
 
-function PersonaHeader({ personaKey, lang }: { personaKey: PersonaKey; lang: Lang }) {
+function PersonaHeader({ personaKey, lang, onAvatarClick }: { personaKey: PersonaKey; lang: Lang; onAvatarClick?: () => void }) {
   const p = PERSONAS[personaKey];
   const Icon = p.icon;
   const lk = langKeyOf(lang);
   return (
     <div className={cn("flex items-center gap-2.5 mb-2 -mx-1 px-2 py-1.5 rounded-xl ring-1", p.bg, p.ring)}>
-      <div className={cn("h-9 w-9 rounded-full flex items-center justify-center bg-background/60 ring-2", p.ring)}>
-        <Icon className={cn("h-4.5 w-4.5", p.text)} />
-      </div>
+      <button
+        onClick={onAvatarClick}
+        className={cn("h-10 w-10 rounded-full overflow-hidden bg-background/60 ring-2 shrink-0 hover:scale-110 active:scale-95 transition-transform", p.ring)}
+        aria-label="Open avatar"
+      >
+        {p.image ? (
+          <img src={p.image} alt={p.label[lk]} loading="lazy" className="h-full w-full object-cover" />
+        ) : (
+          <div className="h-full w-full flex items-center justify-center"><Icon className={cn("h-5 w-5", p.text)} /></div>
+        )}
+      </button>
       <div className="flex flex-col leading-tight flex-1 min-w-0">
         <span className={cn("text-xs font-bold truncate", p.text)}>{p.label[lk]}</span>
         <span className="text-[10px] text-muted-foreground">Hokim AI · {personaKey}</span>
       </div>
-      {p.hotline && <HotlineButton phone={p.hotline} />}
+      {p.hotline && (
+        <a href={`tel:${p.hotline}`} className="inline-flex items-center gap-1 rounded-full bg-primary/90 px-2.5 py-1.5 text-[11px] font-bold text-primary-foreground hover:scale-105 transition-transform">
+          <Phone className="h-3 w-3" /> {p.hotline}
+        </a>
+      )}
     </div>
   );
 }
@@ -73,10 +127,10 @@ function AvatarPicker({
                 className={cn("text-left rounded-xl p-3 ring-1 hover:scale-[1.02] active:scale-95 transition-transform", p.bg, p.ring)}
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <div className={cn("h-8 w-8 rounded-full bg-background/60 flex items-center justify-center ring-1", p.ring)}>
-                    <Icon className={cn("h-4 w-4", p.text)} />
+                  <div className={cn("h-10 w-10 rounded-full overflow-hidden bg-background/60 ring-1 shrink-0", p.ring)}>
+                    {p.image ? <img src={p.image} alt="" loading="lazy" className="h-full w-full object-cover" /> : <Icon className={cn("h-4 w-4 m-auto mt-3", p.text)} />}
                   </div>
-                  <span className={cn("text-xs font-bold", p.text)}>{p.label[lk]}</span>
+                  <span className={cn("text-xs font-bold leading-tight", p.text)}>{p.label[lk]}</span>
                 </div>
                 {p.hotline && (
                   <div className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
@@ -92,14 +146,180 @@ function AvatarPicker({
   );
 }
 
+/** Big speaking avatar modal — TTS + animated "talking" gestures */
+function SpeakingAvatar({
+  open, onClose, persona, text, lang, autoSpeak,
+}: { open: boolean; onClose: () => void; persona: Persona | null; text: string; lang: Lang; autoSpeak: boolean }) {
+  const [speaking, setSpeaking] = useState(false);
+  const lk = langKeyOf(lang);
+  const ttsLang = ttsLangOf(lang);
+
+  const stop = useCallback(() => {
+    try { window.speechSynthesis.cancel(); } catch {}
+    setSpeaking(false);
+  }, []);
+
+  const speak = useCallback(() => {
+    if (!text || !("speechSynthesis" in window)) {
+      toast.error(lk === "ru" ? "Голос не поддерживается" : "Ovoz qo'llab-quvvatlanmaydi");
+      return;
+    }
+    stop();
+    const utter = new SpeechSynthesisUtterance(plainText(text));
+    utter.lang = ttsLang;
+    utter.rate = 0.97;
+    utter.pitch = 1;
+    const voices = window.speechSynthesis.getVoices();
+    const match = voices.find(v => v.lang.toLowerCase().startsWith(ttsLang.toLowerCase().slice(0, 2)));
+    if (match) utter.voice = match;
+    utter.onstart = () => setSpeaking(true);
+    utter.onend = () => setSpeaking(false);
+    utter.onerror = () => setSpeaking(false);
+    window.speechSynthesis.speak(utter);
+  }, [text, ttsLang, lk, stop]);
+
+  useEffect(() => {
+    if (open && autoSpeak) {
+      // small delay so voices load
+      const t = setTimeout(() => speak(), 250);
+      return () => { clearTimeout(t); stop(); };
+    }
+    if (!open) stop();
+  }, [open, autoSpeak, speak, stop]);
+
+  if (!open || !persona) return null;
+  const Icon = persona.icon;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 bg-background/85 backdrop-blur-md flex items-center justify-center p-4"
+        onClick={() => { stop(); onClose(); }}
+      >
+        <motion.div
+          initial={{ scale: 0.85, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+          transition={{ type: "spring", damping: 22 }}
+          onClick={e => e.stopPropagation()}
+          className="w-full max-w-md glass rounded-3xl p-5 shadow-2xl border border-border/60 relative"
+        >
+          <button onClick={() => { stop(); onClose(); }}
+            className="absolute right-3 top-3 h-9 w-9 rounded-full bg-secondary hover:bg-secondary/70 flex items-center justify-center z-10">
+            <X className="h-4 w-4" />
+          </button>
+
+          {/* Animated avatar */}
+          <div className="flex flex-col items-center text-center pt-2">
+            <div className="relative">
+              {speaking && (
+                <>
+                  <motion.span
+                    className={cn("absolute inset-0 rounded-full ring-4", persona.ring)}
+                    animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
+                    transition={{ duration: 1.4, repeat: Infinity }}
+                  />
+                  <motion.span
+                    className={cn("absolute inset-0 rounded-full ring-4", persona.ring)}
+                    animate={{ scale: [1, 1.3, 1], opacity: [0.4, 0, 0.4] }}
+                    transition={{ duration: 1.4, repeat: Infinity, delay: 0.3 }}
+                  />
+                </>
+              )}
+              <motion.div
+                animate={speaking ? { y: [0, -3, 0, -2, 0], rotate: [0, -1.5, 0, 1.5, 0] } : { y: 0, rotate: 0 }}
+                transition={speaking ? { duration: 0.55, repeat: Infinity } : { duration: 0.3 }}
+                className={cn("h-44 w-44 rounded-full overflow-hidden ring-4 shadow-2xl bg-background relative", persona.ring)}
+              >
+                {persona.image ? (
+                  <img src={persona.image} alt={persona.label[lk]} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center"><Icon className={cn("h-20 w-20", persona.text)} /></div>
+                )}
+                {/* "mouth" pulse overlay to simulate speech */}
+                {speaking && (
+                  <motion.span
+                    className="absolute bottom-6 left-1/2 -translate-x-1/2 h-2 w-10 rounded-full bg-foreground/30"
+                    animate={{ scaleX: [0.4, 1, 0.6, 1.1, 0.5], scaleY: [0.6, 1, 0.7, 1.2, 0.6] }}
+                    transition={{ duration: 0.45, repeat: Infinity }}
+                  />
+                )}
+              </motion.div>
+            </div>
+
+            <h3 className={cn("mt-4 font-extrabold text-lg leading-tight", persona.text)}>{persona.label[lk]}</h3>
+            <p className="text-xs text-muted-foreground mt-1">Hokim AI · {persona.key}</p>
+
+            {/* Spoken text preview */}
+            <div className="mt-4 max-h-40 w-full overflow-y-auto rounded-xl bg-secondary/60 p-3 text-left text-sm">
+              <ReactMarkdown>{text || (lk === "ru" ? "Ассистент пока молчит." : "Yordamchi hozircha jim.")}</ReactMarkdown>
+            </div>
+
+            {/* Voice controls */}
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+              {speaking ? (
+                <Button onClick={stop} size="sm" variant="destructive" className="gap-2 rounded-full">
+                  <VolumeX className="h-4 w-4" /> {lk === "ru" ? "Стоп" : "To'xtatish"}
+                </Button>
+              ) : (
+                <Button onClick={speak} size="sm" className="gap-2 rounded-full gradient-accent text-accent-foreground">
+                  <Volume2 className="h-4 w-4" /> {lk === "ru" ? "Озвучить" : "Ovozda eshitish"}
+                </Button>
+              )}
+              {persona.hotline && (
+                <HotlineActions phone={persona.hotline} lang={lang} />
+              )}
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
 export default function Chat() {
   const { t, lang } = useI18n();
-  const [messages, setMessages] = useState<Msg[]>([]);
+  const [messages, setMessages] = useState<Msg[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return JSON.parse(raw) as Msg[];
+    } catch { /* ignore */ }
+    return [];
+  });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [activePersona, setActivePersona] = useState<PersonaKey | null>(null);
+  const [activePersona, setActivePersona] = useState<PersonaKey | null>(() => {
+    if (typeof window === "undefined") return null;
+    try { return (localStorage.getItem(ACTIVE_PERSONA_KEY) as PersonaKey) || null; } catch { return null; }
+  });
+  // Avatar speaking modal state
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const [avatarPersona, setAvatarPersona] = useState<Persona | null>(null);
+  const [avatarText, setAvatarText] = useState("");
+  const [avatarAuto, setAvatarAuto] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Persist messages
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(messages)); } catch {}
+  }, [messages]);
+  useEffect(() => {
+    try {
+      if (activePersona) localStorage.setItem(ACTIVE_PERSONA_KEY, activePersona);
+      else localStorage.removeItem(ACTIVE_PERSONA_KEY);
+    } catch {}
+  }, [activePersona]);
+
+  // Preload TTS voices
+  useEffect(() => {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+    }
+    return () => { try { window.speechSynthesis.cancel(); } catch {} };
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -115,6 +335,13 @@ export default function Chat() {
     } catch { /* ignore */ }
   }
 
+  function openAvatar(p: Persona, text = "", auto = false) {
+    setAvatarPersona(p);
+    setAvatarText(text);
+    setAvatarAuto(auto);
+    setAvatarOpen(true);
+  }
+
   function pickAvatar(p: Persona) {
     setActivePersona(p.key);
     const lk = langKeyOf(lang);
@@ -123,7 +350,15 @@ export default function Chat() {
       uz_cyrl: `Ассалому алайкум! Мен **${p.label.uz_cyrl}**ман. Муаммоингизни батафсил ёзинг — ёрдам бераман.`,
       ru: `Здравствуйте! Я — **${p.label.ru}**. Опишите вашу проблему подробнее.`,
     };
-    setMessages(m => [...m, { role: "assistant", content: greetings[lk], persona: p.key }]);
+    const greeting = greetings[lk];
+    setMessages(m => [...m, { role: "assistant", content: greeting, persona: p.key }]);
+    // Open speaking avatar with greeting auto-spoken
+    openAvatar(p, greeting, true);
+  }
+
+  function clearChat() {
+    setMessages([]);
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
   }
 
   async function send(text: string) {
@@ -173,6 +408,7 @@ export default function Chat() {
       const dec = new TextDecoder();
       let buf = "";
       let assistant = "";
+      let finalPersona: PersonaKey = userPersona;
       setMessages([...next, { role: "assistant", content: "", persona: userPersona }]);
 
       while (true) {
@@ -191,15 +427,20 @@ export default function Chat() {
             if (delta) {
               assistant += delta;
               const detected = detectPersonaFromAssistant(assistant);
-              const persona: PersonaKey = detected !== "default" ? detected : userPersona;
+              finalPersona = detected !== "default" ? detected : userPersona;
               setMessages(m => {
                 const c = [...m];
-                c[c.length - 1] = { role: "assistant", content: assistant, persona };
+                c[c.length - 1] = { role: "assistant", content: assistant, persona: finalPersona };
                 return c;
               });
             }
           } catch { /* ignore */ }
         }
+      }
+
+      // After streaming complete, if user has an active avatar persona, auto-open speaking modal
+      if (activePersona && assistant) {
+        openAvatar(PERSONAS[finalPersona], assistant, true);
       }
     } catch (e: any) {
       toast.error(e.message);
@@ -219,19 +460,32 @@ export default function Chat() {
           <h1 className="text-2xl md:text-3xl font-extrabold flex items-center gap-2"><MessageSquare className="h-6 w-6 text-accent" />{t("chat.title")}</h1>
           <p className="text-sm text-muted-foreground">{t("chat.subtitle")}</p>
         </div>
-        <Button onClick={() => setPickerOpen(true)} size="sm" variant="outline" className="shrink-0 gap-2">
-          <Users className="h-4 w-4" />
-          <span className="hidden sm:inline">Virtual avatar</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          {messages.length > 0 && (
+            <Button onClick={clearChat} size="sm" variant="ghost" className="text-xs text-muted-foreground hover:text-destructive">
+              {lk === "ru" ? "Очистить" : "Tozalash"}
+            </Button>
+          )}
+          <Button onClick={() => setPickerOpen(true)} size="sm" variant="outline" className="shrink-0 gap-2">
+            <Users className="h-4 w-4" />
+            <span className="hidden sm:inline">Virtual avatar</span>
+          </Button>
+        </div>
       </div>
 
       {activeP && (
-        <div className={cn("mb-3 flex items-center gap-2 rounded-xl px-3 py-2 ring-1", activeP.bg, activeP.ring)}>
-          <activeP.icon className={cn("h-4 w-4", activeP.text)} />
-          <span className={cn("text-xs font-bold", activeP.text)}>{activeP.label[lk]}</span>
-          {activeP.hotline && <HotlineButton phone={activeP.hotline} />}
-          <button onClick={() => setActivePersona(null)} className="ml-auto text-xs text-muted-foreground hover:text-foreground">✕</button>
-        </div>
+        <button
+          onClick={() => openAvatar(activeP, "", false)}
+          className={cn("mb-3 flex items-center gap-2 rounded-xl px-3 py-2 ring-1 w-full text-left hover:scale-[1.01] active:scale-[0.99] transition-transform", activeP.bg, activeP.ring)}
+        >
+          <div className={cn("h-9 w-9 rounded-full overflow-hidden ring-2 shrink-0", activeP.ring)}>
+            {activeP.image ? <img src={activeP.image} alt="" className="h-full w-full object-cover" /> : <activeP.icon className={cn("h-4 w-4 m-auto mt-2.5", activeP.text)} />}
+          </div>
+          <span className={cn("text-xs font-bold flex-1", activeP.text)}>{activeP.label[lk]}</span>
+          {activeP.hotline && <span className="text-[11px] font-semibold text-muted-foreground inline-flex items-center gap-1"><Phone className="h-3 w-3" />{activeP.hotline}</span>}
+          <Mic className={cn("h-4 w-4", activeP.text)} />
+          <span onClick={(e) => { e.stopPropagation(); setActivePersona(null); }} className="text-xs text-muted-foreground hover:text-foreground px-1">✕</span>
+        </button>
       )}
 
       <div ref={scrollRef} className="flex-1 glass rounded-2xl p-4 md:p-6 overflow-y-auto space-y-4">
@@ -270,21 +524,39 @@ export default function Chat() {
                       : "bg-secondary"
                 )}>
                   {m.role === "assistant" && m.persona && (
-                    <PersonaHeader personaKey={m.persona} lang={lang} />
+                    <PersonaHeader
+                      personaKey={m.persona}
+                      lang={lang}
+                      onAvatarClick={() => persona && openAvatar(persona, m.content, true)}
+                    />
                   )}
                   {m.role === "assistant" ? (
                     <>
                       <div className="prose prose-sm max-w-none prose-headings:my-1 prose-p:my-1 prose-ul:my-1">
                         <ReactMarkdown>{m.content || "..."}</ReactMarkdown>
                       </div>
-                      {m.safety && persona?.hotline && (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <HotlineButton phone={persona.hotline} label={lang === "ru" ? "Позвонить" : "Qo'ng'iroq"} />
-                          <a href="tel:103" className="inline-flex items-center gap-1.5 rounded-full bg-destructive px-3 py-1.5 text-xs font-bold text-destructive-foreground hover:scale-105 transition-transform">
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {persona?.hotline && (
+                          <HotlineActions
+                            phone={persona.hotline}
+                            lang={lang}
+                            label={m.safety ? (lk === "ru" ? "Позвонить" : "Qo'ng'iroq") : undefined}
+                          />
+                        )}
+                        {m.safety && (
+                          <a href="tel:103" className="inline-flex items-center gap-1.5 rounded-full bg-destructive px-3 py-2 text-xs font-bold text-destructive-foreground hover:scale-105 transition-transform min-h-[36px]">
                             <Phone className="h-3.5 w-3.5" /> 103
                           </a>
-                        </div>
-                      )}
+                        )}
+                        {persona && m.content && (
+                          <button
+                            onClick={() => openAvatar(persona, m.content, true)}
+                            className="inline-flex items-center gap-1 rounded-full bg-accent/15 text-accent ring-1 ring-accent/30 px-2.5 py-2 text-[11px] font-semibold hover:bg-accent/25 active:scale-95 transition-transform min-h-[36px]"
+                          >
+                            <Volume2 className="h-3 w-3" /> {lk === "ru" ? "Озвучить" : "Ovozda eshitish"}
+                          </button>
+                        )}
+                      </div>
                     </>
                   ) : <p className="whitespace-pre-wrap">{m.content}</p>}
                 </div>
@@ -303,6 +575,14 @@ export default function Chat() {
       </form>
 
       <AvatarPicker open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={pickAvatar} lang={lang} />
+      <SpeakingAvatar
+        open={avatarOpen}
+        onClose={() => setAvatarOpen(false)}
+        persona={avatarPersona}
+        text={avatarText}
+        lang={lang}
+        autoSpeak={avatarAuto}
+      />
     </div>
   );
 }
