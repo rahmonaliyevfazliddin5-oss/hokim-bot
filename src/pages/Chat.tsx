@@ -206,46 +206,76 @@ function AvatarPicker({
   );
 }
 
-/** Big speaking avatar modal — TTS + animated "talking" gestures */
+/** Big speaking avatar modal — ElevenLabs TTS (with browser fallback) + animated gestures */
 function SpeakingAvatar({
-  open, onClose, persona, text, lang, autoSpeak,
-}: { open: boolean; onClose: () => void; persona: Persona | null; text: string; lang: Lang; autoSpeak: boolean }) {
+  open, onClose, persona, text, lang, autoSpeak, messageId, onSpeakStateChange,
+}: {
+  open: boolean; onClose: () => void; persona: Persona | null; text: string; lang: Lang;
+  autoSpeak: boolean; messageId?: string;
+  onSpeakStateChange?: (state: { speaking: boolean; messageId?: string }) => void;
+}) {
   const [speaking, setSpeaking] = useState(false);
+  const [loadingAudio, setLoadingAudio] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const lk = langKeyOf(lang);
-  const ttsLang = ttsLangOf(lang);
 
   const stop = useCallback(() => {
     try { window.speechSynthesis.cancel(); } catch {}
-    setSpeaking(false);
-  }, []);
-
-  const speak = useCallback(() => {
-    if (!text || !("speechSynthesis" in window)) {
-      toast.error(lk === "ru" ? "Голос не поддерживается" : "Ovoz qo'llab-quvvatlanmaydi");
-      return;
+    if (audioRef.current) {
+      try { audioRef.current.pause(); } catch {}
+      audioRef.current.src = "";
+      audioRef.current = null;
     }
+    setSpeaking(false);
+    onSpeakStateChange?.({ speaking: false, messageId });
+  }, [messageId, onSpeakStateChange]);
+
+  const speak = useCallback(async () => {
+    if (!text || !persona) return;
     stop();
-    const utter = new SpeechSynthesisUtterance(plainText(text));
-    utter.lang = ttsLang;
-    utter.rate = 0.97;
-    utter.pitch = 1;
-    const voices = window.speechSynthesis.getVoices();
-    const match = voices.find(v => v.lang.toLowerCase().startsWith(ttsLang.toLowerCase().slice(0, 2)));
-    if (match) utter.voice = match;
-    utter.onstart = () => setSpeaking(true);
-    utter.onend = () => setSpeaking(false);
-    utter.onerror = () => setSpeaking(false);
-    window.speechSynthesis.speak(utter);
-  }, [text, ttsLang, lk, stop]);
+    const cleaned = plainText(text);
+    if (!cleaned) return;
+
+    const startBrowserFallback = () => {
+      speakWithBrowser(text, lang, persona.gender,
+        () => { setSpeaking(true); onSpeakStateChange?.({ speaking: true, messageId }); },
+        () => { setSpeaking(false); onSpeakStateChange?.({ speaking: false, messageId }); },
+      );
+    };
+
+    setLoadingAudio(true);
+    try {
+      const voiceId = voiceIdFor(persona, langKeyOf(lang));
+      const r = await fetch(TTS_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+        body: JSON.stringify({ text: cleaned, voiceId, lang: langKeyOf(lang) }),
+      });
+      if (!r.ok) throw new Error(`tts ${r.status}`);
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onplay = () => { setSpeaking(true); onSpeakStateChange?.({ speaking: true, messageId }); };
+      audio.onended = () => { setSpeaking(false); URL.revokeObjectURL(url); onSpeakStateChange?.({ speaking: false, messageId }); };
+      audio.onerror = () => { setSpeaking(false); onSpeakStateChange?.({ speaking: false, messageId }); startBrowserFallback(); };
+      await audio.play();
+    } catch {
+      // Fallback to browser TTS
+      startBrowserFallback();
+    } finally {
+      setLoadingAudio(false);
+    }
+  }, [text, persona, lang, stop, messageId, onSpeakStateChange]);
 
   useEffect(() => {
     if (open && autoSpeak) {
-      // small delay so voices load
-      const t = setTimeout(() => speak(), 250);
+      const t = setTimeout(() => speak(), 200);
       return () => { clearTimeout(t); stop(); };
     }
     if (!open) stop();
-  }, [open, autoSpeak, speak, stop]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, autoSpeak]);
 
   if (!open || !persona) return null;
   const Icon = persona.icon;
@@ -268,7 +298,6 @@ function SpeakingAvatar({
             <X className="h-4 w-4" />
           </button>
 
-          {/* Animated avatar */}
           <div className="flex flex-col items-center text-center pt-2">
             <div className="relative">
               {speaking && (
@@ -295,7 +324,6 @@ function SpeakingAvatar({
                 ) : (
                   <div className="h-full w-full flex items-center justify-center"><Icon className={cn("h-20 w-20", persona.text)} /></div>
                 )}
-                {/* "mouth" pulse overlay to simulate speech */}
                 {speaking && (
                   <motion.span
                     className="absolute bottom-6 left-1/2 -translate-x-1/2 h-2 w-10 rounded-full bg-foreground/30"
@@ -307,22 +335,23 @@ function SpeakingAvatar({
             </div>
 
             <h3 className={cn("mt-4 font-extrabold text-lg leading-tight", persona.text)}>{persona.label[lk]}</h3>
-            <p className="text-xs text-muted-foreground mt-1">Hokim AI · {persona.key}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Hokim AI · {persona.key} · {persona.gender === "female" ? (lk === "ru" ? "женский" : "ayol") : (lk === "ru" ? "мужской" : "erkak")}
+            </p>
 
-            {/* Spoken text preview */}
             <div className="mt-4 max-h-40 w-full overflow-y-auto rounded-xl bg-secondary/60 p-3 text-left text-sm">
               <ReactMarkdown>{text || (lk === "ru" ? "Ассистент пока молчит." : "Yordamchi hozircha jim.")}</ReactMarkdown>
             </div>
 
-            {/* Voice controls */}
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
               {speaking ? (
                 <Button onClick={stop} size="sm" variant="destructive" className="gap-2 rounded-full">
                   <VolumeX className="h-4 w-4" /> {lk === "ru" ? "Стоп" : "To'xtatish"}
                 </Button>
               ) : (
-                <Button onClick={speak} size="sm" className="gap-2 rounded-full gradient-accent text-accent-foreground">
-                  <Volume2 className="h-4 w-4" /> {lk === "ru" ? "Озвучить" : "Ovozda eshitish"}
+                <Button onClick={speak} size="sm" disabled={loadingAudio} className="gap-2 rounded-full gradient-accent text-accent-foreground">
+                  <Volume2 className="h-4 w-4" />
+                  {loadingAudio ? (lk === "ru" ? "Загрузка…" : "Yuklanmoqda…") : (lk === "ru" ? "Озвучить" : "Ovozda eshitish")}
                 </Button>
               )}
               {persona.hotline && (
@@ -335,7 +364,6 @@ function SpeakingAvatar({
     </AnimatePresence>
   );
 }
-
 export default function Chat() {
   const { t, lang } = useI18n();
   const [messages, setMessages] = useState<Msg[]>(() => {
