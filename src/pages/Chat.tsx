@@ -623,7 +623,7 @@ export default function Chat() {
 
       {activeP && (
         <button
-          onClick={() => openAvatar(activeP, "", false)}
+          onClick={() => openAvatar(activeP, "", false, undefined)}
           className={cn("mb-3 flex items-center gap-2 rounded-xl px-3 py-2 ring-1 w-full text-left hover:scale-[1.01] active:scale-[0.99] transition-transform", activeP.bg, activeP.ring)}
         >
           <div className={cn("h-9 w-9 rounded-full overflow-hidden ring-2 shrink-0", activeP.ring)}>
