@@ -50,58 +50,75 @@ export const PERSONAS: Record<PersonaKey, Persona> = {
     key: "gaz",
     label: { uz: "Hududiy gaz ta'minoti xodimi", uz_cyrl: "Ҳудудий газ таъминоти ходими", ru: "Сотрудник газоснабжения", en: "Regional Gas Supply Officer" },
     icon: Flame, bg: "bg-orange-500/15", ring: "ring-orange-500/40", text: "text-orange-600", hotline: "104", image: gazImg,
+    gender: "male", voice: V_MALE,
   },
   elektr: {
     key: "elektr",
     label: { uz: "Elektr tarmoqlari xodimi", uz_cyrl: "Электр тармоқлари ходими", ru: "Сотрудник электросетей", en: "Power Grid Officer" },
     icon: Zap, bg: "bg-yellow-400/20", ring: "ring-yellow-500/40", text: "text-yellow-700", hotline: "1059", image: elektrImg,
+    gender: "male", voice: V_MALE2,
   },
   suv: {
     key: "suv",
     label: { uz: "Suvoqova xodimi", uz_cyrl: "Сувоқова ходими", ru: "Сотрудник Водоканала", en: "Water Utility Officer" },
     icon: Droplet, bg: "bg-sky-500/15", ring: "ring-sky-500/40", text: "text-sky-600", hotline: "1063", image: suvImg,
+    gender: "female", voice: V_FEM,
   },
   chiqindi: {
     key: "chiqindi",
     label: { uz: "Kommunal xizmat xodimi", uz_cyrl: "Коммунал хизмат ходими", ru: "Сотрудник комм. службы", en: "Sanitation Officer" },
     icon: Trash2, bg: "bg-emerald-500/15", ring: "ring-emerald-500/40", text: "text-emerald-700", image: chiqindiImg,
+    gender: "male", voice: V_MALE3,
   },
   yo_l: {
     key: "yo_l",
     label: { uz: "Yo'l-transport xodimi", uz_cyrl: "Йўл-транспорт ходими", ru: "Сотрудник дорожной службы", en: "Roads Dept. Officer" },
     icon: Construction, bg: "bg-amber-500/15", ring: "ring-amber-500/40", text: "text-amber-700", image: yolImg,
+    gender: "male", voice: V_MALE2,
   },
   iib: {
     key: "iib",
     label: { uz: "IIB xodimi", uz_cyrl: "ИИБ ходими", ru: "Сотрудник ОВД", en: "Internal Affairs Officer" },
     icon: Shield, bg: "bg-blue-700/15", ring: "ring-blue-700/40", text: "text-blue-800", hotline: "102", image: iibImg,
+    gender: "male", voice: V_MALE,
   },
   hokimlik: {
     key: "hokimlik",
     label: { uz: "Hokimlik matbuot xizmati", uz_cyrl: "Ҳокимлик матбуот хизмати", ru: "Пресс-служба хокимията", en: "Khokimiyat Press Office" },
     icon: Building2, bg: "bg-primary/15", ring: "ring-primary/40", text: "text-primary", image: hokimImg,
+    gender: "male", voice: V_MALE,
   },
   tibbiy: {
     key: "tibbiy",
     label: { uz: "Tibbiy yo'naltirish", uz_cyrl: "Тиббий йўналтириш", ru: "Медицинская переадресация", en: "Medical Referral" },
     icon: HeartPulse, bg: "bg-red-500/15", ring: "ring-red-500/40", text: "text-red-600", hotline: "103", image: tibbiyImg,
+    gender: "female", voice: V_FEM2,
   },
   psixolog: {
     key: "psixolog",
     label: { uz: "Ishonch telefoni", uz_cyrl: "Ишонч телефони", ru: "Телефон доверия", en: "Helpline" },
     icon: HeartPulse, bg: "bg-pink-500/15", ring: "ring-pink-500/40", text: "text-pink-600", hotline: "1086", image: psixologImg,
+    gender: "female", voice: V_FEM3,
   },
   huquqiy: {
     key: "huquqiy",
     label: { uz: "Yuridik yo'naltirish", uz_cyrl: "Юридик йўналтириш", ru: "Юридическая переадресация", en: "Legal Referral" },
     icon: Scale, bg: "bg-indigo-500/15", ring: "ring-indigo-500/40", text: "text-indigo-700", image: huquqiyImg,
+    gender: "male", voice: V_MALE3,
   },
   default: {
     key: "default",
     label: { uz: "Hokim AI yordamchisi", uz_cyrl: "Ҳоким AI ёрдамчиси", ru: "Помощник Хоким AI", en: "Hokim AI Assistant" },
     icon: Bot, bg: "bg-accent/15", ring: "ring-accent/40", text: "text-accent", image: hokimImg,
+    gender: "male", voice: V_MALE,
   },
 };
+
+/** Resolve ElevenLabs voice ID for persona + language */
+export function voiceIdFor(p: Persona, lang: "uz" | "uz_cyrl" | "ru" | string): string {
+  const key = lang === "ru" ? "ru" : "uz";
+  return p.voice[key] || p.voice.uz;
+}
 
 const TOPIC_RULES: { key: PersonaKey; words: string[] }[] = [
   { key: "gaz", words: ["gaz", "газ", "gas", "metan", "балон", "ballon", "плита"] },
