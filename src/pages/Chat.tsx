@@ -605,6 +605,15 @@ export default function Chat() {
               {lk === "ru" ? "Очистить" : "Tozalash"}
             </Button>
           )}
+          <Button
+            onClick={() => { setAutoSpeak(v => !v); toast.success(autoSpeak ? (lk === "ru" ? "Автоозвучка выключена" : "Avto-ovoz o'chirildi") : (lk === "ru" ? "Автоозвучка включена" : "Avto-ovoz yoqildi")); }}
+            size="sm" variant={autoSpeak ? "default" : "outline"}
+            className={cn("shrink-0 gap-1.5", autoSpeak && "gradient-accent text-accent-foreground")}
+            title={lk === "ru" ? "Автоозвучка ответов" : "Javoblarni avtomatik o'qish"}
+          >
+            {autoSpeak ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+            <span className="hidden sm:inline text-xs">{lk === "ru" ? "Авто-голос" : "Avto-ovoz"}</span>
+          </Button>
           <Button onClick={() => setPickerOpen(true)} size="sm" variant="outline" className="shrink-0 gap-2">
             <Users className="h-4 w-4" />
             <span className="hidden sm:inline">Virtual avatar</span>
