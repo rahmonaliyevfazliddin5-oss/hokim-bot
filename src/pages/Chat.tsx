@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Sparkles, MessageSquare, Phone, Users, X, Copy, MessageCircle, Volume2, VolumeX, Mic } from "lucide-react";
+import { Send, Sparkles, MessageSquare, Phone, Users, X, Copy, MessageCircle, Volume2, VolumeX, Mic, Check, Settings } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,16 +9,20 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
   PERSONAS, PersonaKey, Persona, detectPersona, detectPersonaFromAssistant,
-  detectSafetyTopic, SAFETY_REDIRECTS,
+  detectSafetyTopic, SAFETY_REDIRECTS, voiceIdFor,
 } from "@/lib/persona";
 import { cn } from "@/lib/utils";
 
-interface Msg { role: "user" | "assistant"; content: string; persona?: PersonaKey; safety?: boolean; }
+interface Msg { id?: string; role: "user" | "assistant"; content: string; persona?: PersonaKey; safety?: boolean; }
 
 const PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 const FN_URL = `https://${PROJECT_ID}.supabase.co/functions/v1/ai-chat`;
+const TTS_URL = `https://${PROJECT_ID}.supabase.co/functions/v1/tts`;
 const STORAGE_KEY = "hokim_chat_history_v2";
 const ACTIVE_PERSONA_KEY = "hokim_chat_active_persona_v1";
+const AUTOSPEAK_KEY = "hokim_chat_autospeak_v1";
+const HOTLINE_FB_KEY = "hokim_chat_hotline_fb_v1";
+const LAST_PLAYED_KEY = "hokim_chat_last_played_v1";
 
 const langKeyOf = (lang: Lang) =>
   (lang === "ru" ? "ru" : lang === "uz_cyrl" ? "uz_cyrl" : "uz") as "uz" | "uz_cyrl" | "ru";
@@ -26,7 +30,6 @@ const langKeyOf = (lang: Lang) =>
 const ttsLangOf = (lang: Lang) =>
   lang === "ru" ? "ru-RU" : "uz-UZ";
 
-/** Strip markdown so TTS reads natural prose */
 function plainText(md: string) {
   return md
     .replace(/```[\s\S]*?```/g, "")
@@ -38,19 +41,68 @@ function plainText(md: string) {
     .trim();
 }
 
-/** Hotline action menu: call / copy / SMS */
+/** Persisted hotline-action feedback (copy/sms timestamps per phone) */
+type HotlineFb = Record<string, { copied?: number; sms?: number }>;
+function loadHotlineFb(): HotlineFb {
+  try { return JSON.parse(localStorage.getItem(HOTLINE_FB_KEY) || "{}"); } catch { return {}; }
+}
+function saveHotlineFb(fb: HotlineFb) {
+  try { localStorage.setItem(HOTLINE_FB_KEY, JSON.stringify(fb)); } catch {}
+}
+
+/** Browser-TTS fallback with multi-step voice resolution */
+function speakWithBrowser(text: string, lang: Lang, gender: "male" | "female", onStart: () => void, onEnd: () => void) {
+  if (!("speechSynthesis" in window)) { onEnd(); return; }
+  const ttsLang = ttsLangOf(lang);
+  const lang2 = ttsLang.slice(0, 2).toLowerCase();
+  const utter = new SpeechSynthesisUtterance(plainText(text));
+  utter.rate = 0.97; utter.pitch = gender === "female" ? 1.15 : 0.95;
+  const voices = window.speechSynthesis.getVoices();
+  // Fallback chain: exact lang → lang prefix → language family (ru fallbacks to uk/be; uz fallbacks to tr/ru) → default
+  const fallbackLangs = lang === "ru"
+    ? [ttsLang, "ru", "uk", "be"]
+    : [ttsLang, "uz", "tr", "ru", "kk"];
+  let chosen = voices.find(v => v.lang.toLowerCase() === ttsLang.toLowerCase());
+  if (!chosen) chosen = voices.find(v => v.lang.toLowerCase().startsWith(lang2));
+  if (!chosen) {
+    for (const fl of fallbackLangs) {
+      chosen = voices.find(v => v.lang.toLowerCase().startsWith(fl.toLowerCase()));
+      if (chosen) break;
+    }
+  }
+  if (chosen) { utter.voice = chosen; utter.lang = chosen.lang; } else { utter.lang = ttsLang; }
+  utter.onstart = onStart;
+  utter.onend = onEnd;
+  utter.onerror = onEnd;
+  try { window.speechSynthesis.cancel(); } catch {}
+  window.speechSynthesis.speak(utter);
+}
+
+/** Hotline action menu: call / copy / SMS — with persistent feedback */
 function HotlineActions({ phone, lang, label, compact = false }: { phone: string; lang: Lang; label?: string; compact?: boolean }) {
   const lk = langKeyOf(lang);
+  const [fb, setFb] = useState<{ copied?: number; sms?: number }>(() => loadHotlineFb()[phone] || {});
   const t = {
     call:  { uz: "Qo'ng'iroq", uz_cyrl: "Қўнғироқ", ru: "Звонок" }[lk],
     copy:  { uz: "Nusxa", uz_cyrl: "Нусха", ru: "Копия" }[lk],
     sms:   { uz: "SMS", uz_cyrl: "СМС", ru: "СМС" }[lk],
     copied:{ uz: "Nusxalandi", uz_cyrl: "Нусхаланди", ru: "Скопировано" }[lk],
+    sent:  { uz: "Yuborildi", uz_cyrl: "Юборилди", ru: "Отправлено" }[lk],
+  };
+  const persist = (patch: Partial<{ copied: number; sms: number }>) => {
+    const all = loadHotlineFb();
+    const next = { ...(all[phone] || {}), ...patch };
+    all[phone] = next;
+    saveHotlineFb(all);
+    setFb(next);
   };
   const onCopy = async () => {
-    try { await navigator.clipboard.writeText(phone); toast.success(`${t.copied}: ${phone}`); }
+    try { await navigator.clipboard.writeText(phone); toast.success(`${t.copied}: ${phone}`); persist({ copied: Date.now() }); }
     catch { toast.error("clipboard"); }
   };
+  const onSms = () => { persist({ sms: Date.now() }); };
+  // "fresh" feedback within last 10s pulses; older still shows badge
+  const recent = (ts?: number) => ts && Date.now() - ts < 10_000;
   return (
     <div className="inline-flex flex-wrap items-center gap-1.5">
       <a href={`tel:${phone}`}
@@ -60,13 +112,21 @@ function HotlineActions({ phone, lang, label, compact = false }: { phone: string
       {!compact && (
         <>
           <button onClick={onCopy}
-            className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-2 text-[11px] font-semibold hover:bg-secondary/70 active:scale-95 transition-transform min-h-[36px]"
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-2.5 py-2 text-[11px] font-semibold active:scale-95 transition-transform min-h-[36px]",
+              fb.copied ? "bg-emerald-500/15 text-emerald-700 ring-1 ring-emerald-500/40" : "bg-secondary hover:bg-secondary/70",
+              recent(fb.copied) && "animate-pulse",
+            )}
             aria-label={t.copy}>
-            <Copy className="h-3 w-3" /> {t.copy}
+            {fb.copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />} {fb.copied ? t.copied : t.copy}
           </button>
-          <a href={`sms:${phone}`}
-            className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-2 text-[11px] font-semibold hover:bg-secondary/70 active:scale-95 transition-transform min-h-[36px]">
-            <MessageCircle className="h-3 w-3" /> {t.sms}
+          <a href={`sms:${phone}`} onClick={onSms}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-2.5 py-2 text-[11px] font-semibold active:scale-95 transition-transform min-h-[36px]",
+              fb.sms ? "bg-emerald-500/15 text-emerald-700 ring-1 ring-emerald-500/40" : "bg-secondary hover:bg-secondary/70",
+              recent(fb.sms) && "animate-pulse",
+            )}>
+            {fb.sms ? <Check className="h-3 w-3" /> : <MessageCircle className="h-3 w-3" />} {fb.sms ? t.sent : t.sms}
           </a>
         </>
       )}
