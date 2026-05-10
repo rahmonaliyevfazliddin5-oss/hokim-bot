@@ -505,19 +505,21 @@ export default function Chat() {
     if (safety) {
       const lk = langKeyOf(lang);
       const redirect = SAFETY_REDIRECTS[safety][lk];
+      const safetyId = newId();
       const next: Msg[] = [
         ...messages,
-        { role: "user", content: trimmed },
-        { role: "assistant", content: redirect, persona: safety, safety: true },
+        { id: newId(), role: "user", content: trimmed },
+        { id: safetyId, role: "assistant", content: redirect, persona: safety, safety: true },
       ];
       setMessages(next);
       setInput("");
       void logSafety(safety, trimmed);
+      if (autoSpeak) openAvatar(PERSONAS[safety], redirect, true, safetyId);
       return;
     }
 
     const userPersona = activePersona ?? detectPersona(trimmed);
-    const next: Msg[] = [...messages, { role: "user", content: trimmed }];
+    const next: Msg[] = [...messages, { id: newId(), role: "user", content: trimmed }];
     setMessages(next);
     setInput("");
     setLoading(true);
