@@ -547,7 +547,8 @@ export default function Chat() {
       let buf = "";
       let assistant = "";
       let finalPersona: PersonaKey = userPersona;
-      setMessages([...next, { role: "assistant", content: "", persona: userPersona }]);
+      const assistantId = newId();
+      setMessages([...next, { id: assistantId, role: "assistant", content: "", persona: userPersona }]);
 
       while (true) {
         const { done, value } = await reader.read();
@@ -568,7 +569,7 @@ export default function Chat() {
               finalPersona = detected !== "default" ? detected : userPersona;
               setMessages(m => {
                 const c = [...m];
-                c[c.length - 1] = { role: "assistant", content: assistant, persona: finalPersona };
+                c[c.length - 1] = { id: assistantId, role: "assistant", content: assistant, persona: finalPersona };
                 return c;
               });
             }
@@ -576,9 +577,9 @@ export default function Chat() {
         }
       }
 
-      // After streaming complete, if user has an active avatar persona, auto-open speaking modal
-      if (activePersona && assistant) {
-        openAvatar(PERSONAS[finalPersona], assistant, true);
+      // After streaming complete, auto-open speaking avatar only if autoSpeak setting is on
+      if (autoSpeak && activePersona && assistant) {
+        openAvatar(PERSONAS[finalPersona], assistant, true, assistantId);
       }
     } catch (e: any) {
       toast.error(e.message);
