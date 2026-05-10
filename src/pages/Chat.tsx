@@ -381,11 +381,19 @@ export default function Chat() {
     if (typeof window === "undefined") return null;
     try { return (localStorage.getItem(ACTIVE_PERSONA_KEY) as PersonaKey) || null; } catch { return null; }
   });
+  const [autoSpeak, setAutoSpeak] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      const v = localStorage.getItem(AUTOSPEAK_KEY);
+      return v === null ? true : v === "1";
+    } catch { return true; }
+  });
   // Avatar speaking modal state
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [avatarPersona, setAvatarPersona] = useState<Persona | null>(null);
   const [avatarText, setAvatarText] = useState("");
   const [avatarAuto, setAvatarAuto] = useState(false);
+  const [avatarMsgId, setAvatarMsgId] = useState<string | undefined>(undefined);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -399,6 +407,39 @@ export default function Chat() {
       else localStorage.removeItem(ACTIVE_PERSONA_KEY);
     } catch {}
   }, [activePersona]);
+  useEffect(() => {
+    try { localStorage.setItem(AUTOSPEAK_KEY, autoSpeak ? "1" : "0"); } catch {}
+  }, [autoSpeak]);
+
+  // Restore last-played message on mount: if there was an in-progress speak, reopen avatar (no autoplay — user must press)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LAST_PLAYED_KEY);
+      if (!raw) return;
+      const last = JSON.parse(raw) as { messageId?: string; speaking?: boolean };
+      if (!last?.messageId) return;
+      const msg = messages.find(m => m.id === last.messageId);
+      if (msg && msg.persona) {
+        setAvatarPersona(PERSONAS[msg.persona]);
+        setAvatarText(msg.content);
+        setAvatarMsgId(msg.id);
+        setAvatarAuto(false);
+        setAvatarOpen(true);
+      }
+    } catch {}
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const persistLastPlayed = useCallback((state: { speaking: boolean; messageId?: string }) => {
+    try {
+      if (state.speaking && state.messageId) {
+        localStorage.setItem(LAST_PLAYED_KEY, JSON.stringify(state));
+      } else {
+        localStorage.removeItem(LAST_PLAYED_KEY);
+      }
+    } catch {}
+  }, []);
 
   // Preload TTS voices
   useEffect(() => {
@@ -423,10 +464,13 @@ export default function Chat() {
     } catch { /* ignore */ }
   }
 
-  function openAvatar(p: Persona, text = "", auto = false) {
+  const newId = () => `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  function openAvatar(p: Persona, text = "", auto = false, messageId?: string) {
     setAvatarPersona(p);
     setAvatarText(text);
     setAvatarAuto(auto);
+    setAvatarMsgId(messageId);
     setAvatarOpen(true);
   }
 
@@ -439,14 +483,18 @@ export default function Chat() {
       ru: `Здравствуйте! Я — **${p.label.ru}**. Опишите вашу проблему подробнее.`,
     };
     const greeting = greetings[lk];
-    setMessages(m => [...m, { role: "assistant", content: greeting, persona: p.key }]);
-    // Open speaking avatar with greeting auto-spoken
-    openAvatar(p, greeting, true);
+    const id = newId();
+    setMessages(m => [...m, { id, role: "assistant", content: greeting, persona: p.key }]);
+    // Open speaking avatar — autoplay only if autoSpeak on
+    openAvatar(p, greeting, autoSpeak, id);
   }
 
   function clearChat() {
     setMessages([]);
-    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(LAST_PLAYED_KEY);
+    } catch {}
   }
 
   async function send(text: string) {
