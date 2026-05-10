@@ -675,7 +675,7 @@ export default function Chat() {
                     <PersonaHeader
                       personaKey={m.persona}
                       lang={lang}
-                      onAvatarClick={() => persona && openAvatar(persona, m.content, true)}
+                      onAvatarClick={() => persona && openAvatar(persona, m.content, true, m.id)}
                     />
                   )}
                   {m.role === "assistant" ? (
@@ -698,7 +698,7 @@ export default function Chat() {
                         )}
                         {persona && m.content && (
                           <button
-                            onClick={() => openAvatar(persona, m.content, true)}
+                            onClick={() => openAvatar(persona, m.content, true, m.id)}
                             className="inline-flex items-center gap-1 rounded-full bg-accent/15 text-accent ring-1 ring-accent/30 px-2.5 py-2 text-[11px] font-semibold hover:bg-accent/25 active:scale-95 transition-transform min-h-[36px]"
                           >
                             <Volume2 className="h-3 w-3" /> {lk === "ru" ? "Озвучить" : "Ovozda eshitish"}
@@ -730,6 +730,8 @@ export default function Chat() {
         text={avatarText}
         lang={lang}
         autoSpeak={avatarAuto}
+        messageId={avatarMsgId}
+        onSpeakStateChange={persistLastPlayed}
       />
     </div>
   );
