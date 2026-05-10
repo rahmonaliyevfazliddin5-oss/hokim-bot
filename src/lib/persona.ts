@@ -14,20 +14,36 @@ export type PersonaKey =
   | "gaz" | "elektr" | "suv" | "chiqindi" | "yo_l"
   | "iib" | "hokimlik" | "tibbiy" | "psixolog" | "huquqiy" | "default";
 
+export type Gender = "male" | "female";
+
 export interface Persona {
   key: PersonaKey;
-  /** UZ / RU / EN role labels */
   label: { uz: string; uz_cyrl: string; ru: string; en: string };
   icon: LucideIcon;
-  /** tailwind classes for badge/avatar background + ring */
   bg: string;
   ring: string;
   text: string;
-  /** Phone hotline if relevant */
   hotline?: string;
-  /** Photo avatar */
   image?: string;
+  /** Gender — drives TTS voice selection */
+  gender: Gender;
+  /** ElevenLabs voice IDs per language */
+  voice: {
+    uz: string;   // also used for uz_cyrl
+    ru: string;
+    en?: string;
+  };
 }
+
+// Curated ElevenLabs voice IDs (multilingual_v2 supports uz/ru well)
+// Male: George (warm, official), Brian (deep), Daniel (clear)
+// Female: Sarah (warm), Alice (clear), Matilda (friendly)
+const V_MALE   = { uz: "JBFqnCBsd6RMkjVDRZzb", ru: "JBFqnCBsd6RMkjVDRZzb", en: "JBFqnCBsd6RMkjVDRZzb" }; // George
+const V_MALE2  = { uz: "nPczCjzI2devNBz1zQrb", ru: "nPczCjzI2devNBz1zQrb", en: "nPczCjzI2devNBz1zQrb" }; // Brian
+const V_MALE3  = { uz: "onwK4e9ZLuTAKqWW03F9", ru: "onwK4e9ZLuTAKqWW03F9", en: "onwK4e9ZLuTAKqWW03F9" }; // Daniel
+const V_FEM    = { uz: "EXAVITQu4vr4xnSDxMaL", ru: "EXAVITQu4vr4xnSDxMaL", en: "EXAVITQu4vr4xnSDxMaL" }; // Sarah
+const V_FEM2   = { uz: "Xb7hH8MSUJpSbSDYk0k2", ru: "Xb7hH8MSUJpSbSDYk0k2", en: "Xb7hH8MSUJpSbSDYk0k2" }; // Alice
+const V_FEM3   = { uz: "XrExE9yKIg1WjnnlVkGX", ru: "XrExE9yKIg1WjnnlVkGX", en: "XrExE9yKIg1WjnnlVkGX" }; // Matilda
 
 export const PERSONAS: Record<PersonaKey, Persona> = {
   gaz: {
