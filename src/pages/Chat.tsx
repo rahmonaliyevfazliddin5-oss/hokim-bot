@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Sparkles, MessageSquare, Phone, Users, X, Copy, MessageCircle, Volume2, VolumeX, Mic } from "lucide-react";
+import { Send, Sparkles, MessageSquare, Phone, Users, X, Copy, MessageCircle, Volume2, VolumeX, Mic, Check, Settings } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,16 +9,20 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
   PERSONAS, PersonaKey, Persona, detectPersona, detectPersonaFromAssistant,
-  detectSafetyTopic, SAFETY_REDIRECTS,
+  detectSafetyTopic, SAFETY_REDIRECTS, voiceIdFor,
 } from "@/lib/persona";
 import { cn } from "@/lib/utils";
 
-interface Msg { role: "user" | "assistant"; content: string; persona?: PersonaKey; safety?: boolean; }
+interface Msg { id?: string; role: "user" | "assistant"; content: string; persona?: PersonaKey; safety?: boolean; }
 
 const PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 const FN_URL = `https://${PROJECT_ID}.supabase.co/functions/v1/ai-chat`;
+const TTS_URL = `https://${PROJECT_ID}.supabase.co/functions/v1/tts`;
 const STORAGE_KEY = "hokim_chat_history_v2";
 const ACTIVE_PERSONA_KEY = "hokim_chat_active_persona_v1";
+const AUTOSPEAK_KEY = "hokim_chat_autospeak_v1";
+const HOTLINE_FB_KEY = "hokim_chat_hotline_fb_v1";
+const LAST_PLAYED_KEY = "hokim_chat_last_played_v1";
 
 const langKeyOf = (lang: Lang) =>
   (lang === "ru" ? "ru" : lang === "uz_cyrl" ? "uz_cyrl" : "uz") as "uz" | "uz_cyrl" | "ru";
@@ -26,7 +30,6 @@ const langKeyOf = (lang: Lang) =>
 const ttsLangOf = (lang: Lang) =>
   lang === "ru" ? "ru-RU" : "uz-UZ";
 
-/** Strip markdown so TTS reads natural prose */
 function plainText(md: string) {
   return md
     .replace(/```[\s\S]*?```/g, "")
@@ -38,19 +41,68 @@ function plainText(md: string) {
     .trim();
 }
 
-/** Hotline action menu: call / copy / SMS */
+/** Persisted hotline-action feedback (copy/sms timestamps per phone) */
+type HotlineFb = Record<string, { copied?: number; sms?: number }>;
+function loadHotlineFb(): HotlineFb {
+  try { return JSON.parse(localStorage.getItem(HOTLINE_FB_KEY) || "{}"); } catch { return {}; }
+}
+function saveHotlineFb(fb: HotlineFb) {
+  try { localStorage.setItem(HOTLINE_FB_KEY, JSON.stringify(fb)); } catch {}
+}
+
+/** Browser-TTS fallback with multi-step voice resolution */
+function speakWithBrowser(text: string, lang: Lang, gender: "male" | "female", onStart: () => void, onEnd: () => void) {
+  if (!("speechSynthesis" in window)) { onEnd(); return; }
+  const ttsLang = ttsLangOf(lang);
+  const lang2 = ttsLang.slice(0, 2).toLowerCase();
+  const utter = new SpeechSynthesisUtterance(plainText(text));
+  utter.rate = 0.97; utter.pitch = gender === "female" ? 1.15 : 0.95;
+  const voices = window.speechSynthesis.getVoices();
+  // Fallback chain: exact lang → lang prefix → language family (ru fallbacks to uk/be; uz fallbacks to tr/ru) → default
+  const fallbackLangs = lang === "ru"
+    ? [ttsLang, "ru", "uk", "be"]
+    : [ttsLang, "uz", "tr", "ru", "kk"];
+  let chosen = voices.find(v => v.lang.toLowerCase() === ttsLang.toLowerCase());
+  if (!chosen) chosen = voices.find(v => v.lang.toLowerCase().startsWith(lang2));
+  if (!chosen) {
+    for (const fl of fallbackLangs) {
+      chosen = voices.find(v => v.lang.toLowerCase().startsWith(fl.toLowerCase()));
+      if (chosen) break;
+    }
+  }
+  if (chosen) { utter.voice = chosen; utter.lang = chosen.lang; } else { utter.lang = ttsLang; }
+  utter.onstart = onStart;
+  utter.onend = onEnd;
+  utter.onerror = onEnd;
+  try { window.speechSynthesis.cancel(); } catch {}
+  window.speechSynthesis.speak(utter);
+}
+
+/** Hotline action menu: call / copy / SMS — with persistent feedback */
 function HotlineActions({ phone, lang, label, compact = false }: { phone: string; lang: Lang; label?: string; compact?: boolean }) {
   const lk = langKeyOf(lang);
+  const [fb, setFb] = useState<{ copied?: number; sms?: number }>(() => loadHotlineFb()[phone] || {});
   const t = {
     call:  { uz: "Qo'ng'iroq", uz_cyrl: "Қўнғироқ", ru: "Звонок" }[lk],
     copy:  { uz: "Nusxa", uz_cyrl: "Нусха", ru: "Копия" }[lk],
     sms:   { uz: "SMS", uz_cyrl: "СМС", ru: "СМС" }[lk],
     copied:{ uz: "Nusxalandi", uz_cyrl: "Нусхаланди", ru: "Скопировано" }[lk],
+    sent:  { uz: "Yuborildi", uz_cyrl: "Юборилди", ru: "Отправлено" }[lk],
+  };
+  const persist = (patch: Partial<{ copied: number; sms: number }>) => {
+    const all = loadHotlineFb();
+    const next = { ...(all[phone] || {}), ...patch };
+    all[phone] = next;
+    saveHotlineFb(all);
+    setFb(next);
   };
   const onCopy = async () => {
-    try { await navigator.clipboard.writeText(phone); toast.success(`${t.copied}: ${phone}`); }
+    try { await navigator.clipboard.writeText(phone); toast.success(`${t.copied}: ${phone}`); persist({ copied: Date.now() }); }
     catch { toast.error("clipboard"); }
   };
+  const onSms = () => { persist({ sms: Date.now() }); };
+  // "fresh" feedback within last 10s pulses; older still shows badge
+  const recent = (ts?: number) => ts && Date.now() - ts < 10_000;
   return (
     <div className="inline-flex flex-wrap items-center gap-1.5">
       <a href={`tel:${phone}`}
@@ -60,13 +112,21 @@ function HotlineActions({ phone, lang, label, compact = false }: { phone: string
       {!compact && (
         <>
           <button onClick={onCopy}
-            className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-2 text-[11px] font-semibold hover:bg-secondary/70 active:scale-95 transition-transform min-h-[36px]"
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-2.5 py-2 text-[11px] font-semibold active:scale-95 transition-transform min-h-[36px]",
+              fb.copied ? "bg-emerald-500/15 text-emerald-700 ring-1 ring-emerald-500/40" : "bg-secondary hover:bg-secondary/70",
+              recent(fb.copied) && "animate-pulse",
+            )}
             aria-label={t.copy}>
-            <Copy className="h-3 w-3" /> {t.copy}
+            {fb.copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />} {fb.copied ? t.copied : t.copy}
           </button>
-          <a href={`sms:${phone}`}
-            className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-2 text-[11px] font-semibold hover:bg-secondary/70 active:scale-95 transition-transform min-h-[36px]">
-            <MessageCircle className="h-3 w-3" /> {t.sms}
+          <a href={`sms:${phone}`} onClick={onSms}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-2.5 py-2 text-[11px] font-semibold active:scale-95 transition-transform min-h-[36px]",
+              fb.sms ? "bg-emerald-500/15 text-emerald-700 ring-1 ring-emerald-500/40" : "bg-secondary hover:bg-secondary/70",
+              recent(fb.sms) && "animate-pulse",
+            )}>
+            {fb.sms ? <Check className="h-3 w-3" /> : <MessageCircle className="h-3 w-3" />} {fb.sms ? t.sent : t.sms}
           </a>
         </>
       )}
@@ -146,46 +206,76 @@ function AvatarPicker({
   );
 }
 
-/** Big speaking avatar modal — TTS + animated "talking" gestures */
+/** Big speaking avatar modal — ElevenLabs TTS (with browser fallback) + animated gestures */
 function SpeakingAvatar({
-  open, onClose, persona, text, lang, autoSpeak,
-}: { open: boolean; onClose: () => void; persona: Persona | null; text: string; lang: Lang; autoSpeak: boolean }) {
+  open, onClose, persona, text, lang, autoSpeak, messageId, onSpeakStateChange,
+}: {
+  open: boolean; onClose: () => void; persona: Persona | null; text: string; lang: Lang;
+  autoSpeak: boolean; messageId?: string;
+  onSpeakStateChange?: (state: { speaking: boolean; messageId?: string }) => void;
+}) {
   const [speaking, setSpeaking] = useState(false);
+  const [loadingAudio, setLoadingAudio] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const lk = langKeyOf(lang);
-  const ttsLang = ttsLangOf(lang);
 
   const stop = useCallback(() => {
     try { window.speechSynthesis.cancel(); } catch {}
-    setSpeaking(false);
-  }, []);
-
-  const speak = useCallback(() => {
-    if (!text || !("speechSynthesis" in window)) {
-      toast.error(lk === "ru" ? "Голос не поддерживается" : "Ovoz qo'llab-quvvatlanmaydi");
-      return;
+    if (audioRef.current) {
+      try { audioRef.current.pause(); } catch {}
+      audioRef.current.src = "";
+      audioRef.current = null;
     }
+    setSpeaking(false);
+    onSpeakStateChange?.({ speaking: false, messageId });
+  }, [messageId, onSpeakStateChange]);
+
+  const speak = useCallback(async () => {
+    if (!text || !persona) return;
     stop();
-    const utter = new SpeechSynthesisUtterance(plainText(text));
-    utter.lang = ttsLang;
-    utter.rate = 0.97;
-    utter.pitch = 1;
-    const voices = window.speechSynthesis.getVoices();
-    const match = voices.find(v => v.lang.toLowerCase().startsWith(ttsLang.toLowerCase().slice(0, 2)));
-    if (match) utter.voice = match;
-    utter.onstart = () => setSpeaking(true);
-    utter.onend = () => setSpeaking(false);
-    utter.onerror = () => setSpeaking(false);
-    window.speechSynthesis.speak(utter);
-  }, [text, ttsLang, lk, stop]);
+    const cleaned = plainText(text);
+    if (!cleaned) return;
+
+    const startBrowserFallback = () => {
+      speakWithBrowser(text, lang, persona.gender,
+        () => { setSpeaking(true); onSpeakStateChange?.({ speaking: true, messageId }); },
+        () => { setSpeaking(false); onSpeakStateChange?.({ speaking: false, messageId }); },
+      );
+    };
+
+    setLoadingAudio(true);
+    try {
+      const voiceId = voiceIdFor(persona, langKeyOf(lang));
+      const r = await fetch(TTS_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+        body: JSON.stringify({ text: cleaned, voiceId, lang: langKeyOf(lang) }),
+      });
+      if (!r.ok) throw new Error(`tts ${r.status}`);
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onplay = () => { setSpeaking(true); onSpeakStateChange?.({ speaking: true, messageId }); };
+      audio.onended = () => { setSpeaking(false); URL.revokeObjectURL(url); onSpeakStateChange?.({ speaking: false, messageId }); };
+      audio.onerror = () => { setSpeaking(false); onSpeakStateChange?.({ speaking: false, messageId }); startBrowserFallback(); };
+      await audio.play();
+    } catch {
+      // Fallback to browser TTS
+      startBrowserFallback();
+    } finally {
+      setLoadingAudio(false);
+    }
+  }, [text, persona, lang, stop, messageId, onSpeakStateChange]);
 
   useEffect(() => {
     if (open && autoSpeak) {
-      // small delay so voices load
-      const t = setTimeout(() => speak(), 250);
+      const t = setTimeout(() => speak(), 200);
       return () => { clearTimeout(t); stop(); };
     }
     if (!open) stop();
-  }, [open, autoSpeak, speak, stop]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, autoSpeak]);
 
   if (!open || !persona) return null;
   const Icon = persona.icon;
@@ -208,7 +298,6 @@ function SpeakingAvatar({
             <X className="h-4 w-4" />
           </button>
 
-          {/* Animated avatar */}
           <div className="flex flex-col items-center text-center pt-2">
             <div className="relative">
               {speaking && (
@@ -235,7 +324,6 @@ function SpeakingAvatar({
                 ) : (
                   <div className="h-full w-full flex items-center justify-center"><Icon className={cn("h-20 w-20", persona.text)} /></div>
                 )}
-                {/* "mouth" pulse overlay to simulate speech */}
                 {speaking && (
                   <motion.span
                     className="absolute bottom-6 left-1/2 -translate-x-1/2 h-2 w-10 rounded-full bg-foreground/30"
@@ -247,22 +335,23 @@ function SpeakingAvatar({
             </div>
 
             <h3 className={cn("mt-4 font-extrabold text-lg leading-tight", persona.text)}>{persona.label[lk]}</h3>
-            <p className="text-xs text-muted-foreground mt-1">Hokim AI · {persona.key}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Hokim AI · {persona.key} · {persona.gender === "female" ? (lk === "ru" ? "женский" : "ayol") : (lk === "ru" ? "мужской" : "erkak")}
+            </p>
 
-            {/* Spoken text preview */}
             <div className="mt-4 max-h-40 w-full overflow-y-auto rounded-xl bg-secondary/60 p-3 text-left text-sm">
               <ReactMarkdown>{text || (lk === "ru" ? "Ассистент пока молчит." : "Yordamchi hozircha jim.")}</ReactMarkdown>
             </div>
 
-            {/* Voice controls */}
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
               {speaking ? (
                 <Button onClick={stop} size="sm" variant="destructive" className="gap-2 rounded-full">
                   <VolumeX className="h-4 w-4" /> {lk === "ru" ? "Стоп" : "To'xtatish"}
                 </Button>
               ) : (
-                <Button onClick={speak} size="sm" className="gap-2 rounded-full gradient-accent text-accent-foreground">
-                  <Volume2 className="h-4 w-4" /> {lk === "ru" ? "Озвучить" : "Ovozda eshitish"}
+                <Button onClick={speak} size="sm" disabled={loadingAudio} className="gap-2 rounded-full gradient-accent text-accent-foreground">
+                  <Volume2 className="h-4 w-4" />
+                  {loadingAudio ? (lk === "ru" ? "Загрузка…" : "Yuklanmoqda…") : (lk === "ru" ? "Озвучить" : "Ovozda eshitish")}
                 </Button>
               )}
               {persona.hotline && (
@@ -275,7 +364,6 @@ function SpeakingAvatar({
     </AnimatePresence>
   );
 }
-
 export default function Chat() {
   const { t, lang } = useI18n();
   const [messages, setMessages] = useState<Msg[]>(() => {
@@ -293,11 +381,19 @@ export default function Chat() {
     if (typeof window === "undefined") return null;
     try { return (localStorage.getItem(ACTIVE_PERSONA_KEY) as PersonaKey) || null; } catch { return null; }
   });
+  const [autoSpeak, setAutoSpeak] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      const v = localStorage.getItem(AUTOSPEAK_KEY);
+      return v === null ? true : v === "1";
+    } catch { return true; }
+  });
   // Avatar speaking modal state
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [avatarPersona, setAvatarPersona] = useState<Persona | null>(null);
   const [avatarText, setAvatarText] = useState("");
   const [avatarAuto, setAvatarAuto] = useState(false);
+  const [avatarMsgId, setAvatarMsgId] = useState<string | undefined>(undefined);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -311,6 +407,39 @@ export default function Chat() {
       else localStorage.removeItem(ACTIVE_PERSONA_KEY);
     } catch {}
   }, [activePersona]);
+  useEffect(() => {
+    try { localStorage.setItem(AUTOSPEAK_KEY, autoSpeak ? "1" : "0"); } catch {}
+  }, [autoSpeak]);
+
+  // Restore last-played message on mount: if there was an in-progress speak, reopen avatar (no autoplay — user must press)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LAST_PLAYED_KEY);
+      if (!raw) return;
+      const last = JSON.parse(raw) as { messageId?: string; speaking?: boolean };
+      if (!last?.messageId) return;
+      const msg = messages.find(m => m.id === last.messageId);
+      if (msg && msg.persona) {
+        setAvatarPersona(PERSONAS[msg.persona]);
+        setAvatarText(msg.content);
+        setAvatarMsgId(msg.id);
+        setAvatarAuto(false);
+        setAvatarOpen(true);
+      }
+    } catch {}
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const persistLastPlayed = useCallback((state: { speaking: boolean; messageId?: string }) => {
+    try {
+      if (state.speaking && state.messageId) {
+        localStorage.setItem(LAST_PLAYED_KEY, JSON.stringify(state));
+      } else {
+        localStorage.removeItem(LAST_PLAYED_KEY);
+      }
+    } catch {}
+  }, []);
 
   // Preload TTS voices
   useEffect(() => {
@@ -335,10 +464,13 @@ export default function Chat() {
     } catch { /* ignore */ }
   }
 
-  function openAvatar(p: Persona, text = "", auto = false) {
+  const newId = () => `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  function openAvatar(p: Persona, text = "", auto = false, messageId?: string) {
     setAvatarPersona(p);
     setAvatarText(text);
     setAvatarAuto(auto);
+    setAvatarMsgId(messageId);
     setAvatarOpen(true);
   }
 
@@ -351,14 +483,18 @@ export default function Chat() {
       ru: `Здравствуйте! Я — **${p.label.ru}**. Опишите вашу проблему подробнее.`,
     };
     const greeting = greetings[lk];
-    setMessages(m => [...m, { role: "assistant", content: greeting, persona: p.key }]);
-    // Open speaking avatar with greeting auto-spoken
-    openAvatar(p, greeting, true);
+    const id = newId();
+    setMessages(m => [...m, { id, role: "assistant", content: greeting, persona: p.key }]);
+    // Open speaking avatar — autoplay only if autoSpeak on
+    openAvatar(p, greeting, autoSpeak, id);
   }
 
   function clearChat() {
     setMessages([]);
-    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(LAST_PLAYED_KEY);
+    } catch {}
   }
 
   async function send(text: string) {
@@ -369,19 +505,21 @@ export default function Chat() {
     if (safety) {
       const lk = langKeyOf(lang);
       const redirect = SAFETY_REDIRECTS[safety][lk];
+      const safetyId = newId();
       const next: Msg[] = [
         ...messages,
-        { role: "user", content: trimmed },
-        { role: "assistant", content: redirect, persona: safety, safety: true },
+        { id: newId(), role: "user", content: trimmed },
+        { id: safetyId, role: "assistant", content: redirect, persona: safety, safety: true },
       ];
       setMessages(next);
       setInput("");
       void logSafety(safety, trimmed);
+      if (autoSpeak) openAvatar(PERSONAS[safety], redirect, true, safetyId);
       return;
     }
 
     const userPersona = activePersona ?? detectPersona(trimmed);
-    const next: Msg[] = [...messages, { role: "user", content: trimmed }];
+    const next: Msg[] = [...messages, { id: newId(), role: "user", content: trimmed }];
     setMessages(next);
     setInput("");
     setLoading(true);
@@ -409,7 +547,8 @@ export default function Chat() {
       let buf = "";
       let assistant = "";
       let finalPersona: PersonaKey = userPersona;
-      setMessages([...next, { role: "assistant", content: "", persona: userPersona }]);
+      const assistantId = newId();
+      setMessages([...next, { id: assistantId, role: "assistant", content: "", persona: userPersona }]);
 
       while (true) {
         const { done, value } = await reader.read();
@@ -430,7 +569,7 @@ export default function Chat() {
               finalPersona = detected !== "default" ? detected : userPersona;
               setMessages(m => {
                 const c = [...m];
-                c[c.length - 1] = { role: "assistant", content: assistant, persona: finalPersona };
+                c[c.length - 1] = { id: assistantId, role: "assistant", content: assistant, persona: finalPersona };
                 return c;
               });
             }
@@ -438,9 +577,9 @@ export default function Chat() {
         }
       }
 
-      // After streaming complete, if user has an active avatar persona, auto-open speaking modal
-      if (activePersona && assistant) {
-        openAvatar(PERSONAS[finalPersona], assistant, true);
+      // After streaming complete, auto-open speaking avatar only if autoSpeak setting is on
+      if (autoSpeak && activePersona && assistant) {
+        openAvatar(PERSONAS[finalPersona], assistant, true, assistantId);
       }
     } catch (e: any) {
       toast.error(e.message);
@@ -466,6 +605,15 @@ export default function Chat() {
               {lk === "ru" ? "Очистить" : "Tozalash"}
             </Button>
           )}
+          <Button
+            onClick={() => { setAutoSpeak(v => !v); toast.success(autoSpeak ? (lk === "ru" ? "Автоозвучка выключена" : "Avto-ovoz o'chirildi") : (lk === "ru" ? "Автоозвучка включена" : "Avto-ovoz yoqildi")); }}
+            size="sm" variant={autoSpeak ? "default" : "outline"}
+            className={cn("shrink-0 gap-1.5", autoSpeak && "gradient-accent text-accent-foreground")}
+            title={lk === "ru" ? "Автоозвучка ответов" : "Javoblarni avtomatik o'qish"}
+          >
+            {autoSpeak ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+            <span className="hidden sm:inline text-xs">{lk === "ru" ? "Авто-голос" : "Avto-ovoz"}</span>
+          </Button>
           <Button onClick={() => setPickerOpen(true)} size="sm" variant="outline" className="shrink-0 gap-2">
             <Users className="h-4 w-4" />
             <span className="hidden sm:inline">Virtual avatar</span>
@@ -475,7 +623,7 @@ export default function Chat() {
 
       {activeP && (
         <button
-          onClick={() => openAvatar(activeP, "", false)}
+          onClick={() => openAvatar(activeP, "", false, undefined)}
           className={cn("mb-3 flex items-center gap-2 rounded-xl px-3 py-2 ring-1 w-full text-left hover:scale-[1.01] active:scale-[0.99] transition-transform", activeP.bg, activeP.ring)}
         >
           <div className={cn("h-9 w-9 rounded-full overflow-hidden ring-2 shrink-0", activeP.ring)}>
@@ -527,7 +675,7 @@ export default function Chat() {
                     <PersonaHeader
                       personaKey={m.persona}
                       lang={lang}
-                      onAvatarClick={() => persona && openAvatar(persona, m.content, true)}
+                      onAvatarClick={() => persona && openAvatar(persona, m.content, true, m.id)}
                     />
                   )}
                   {m.role === "assistant" ? (
@@ -550,7 +698,7 @@ export default function Chat() {
                         )}
                         {persona && m.content && (
                           <button
-                            onClick={() => openAvatar(persona, m.content, true)}
+                            onClick={() => openAvatar(persona, m.content, true, m.id)}
                             className="inline-flex items-center gap-1 rounded-full bg-accent/15 text-accent ring-1 ring-accent/30 px-2.5 py-2 text-[11px] font-semibold hover:bg-accent/25 active:scale-95 transition-transform min-h-[36px]"
                           >
                             <Volume2 className="h-3 w-3" /> {lk === "ru" ? "Озвучить" : "Ovozda eshitish"}
@@ -582,6 +730,8 @@ export default function Chat() {
         text={avatarText}
         lang={lang}
         autoSpeak={avatarAuto}
+        messageId={avatarMsgId}
+        onSpeakStateChange={persistLastPlayed}
       />
     </div>
   );
