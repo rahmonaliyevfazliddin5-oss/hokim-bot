@@ -10,8 +10,8 @@ const Ctx = createContext<AdminCtx | null>(null);
 
 const KEY = "hokim_admin_session";
 // NOTE: MVP-level gate. For production use real auth.
-const ADMIN_USER = "admin";
-const ADMIN_PASS = "fazliddin123";
+const ADMIN_USER = "fazliddin";
+const ADMIN_PASS = "qwerty";
 
 export function AdminProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
