@@ -8,7 +8,7 @@ export default function AdminLogs() {
   const [logs, setLogs] = useState<any[]>([]);
 
   useEffect(() => {
-    supabase.from("activity_logs").select("*").order("created_at", { ascending: false }).limit(200).then(({ data }) => setLogs(data || []));
+    adminCall<{ logs: any[] }>("list_logs").then(({ logs }) => setLogs(logs || [])).catch(() => {});
   }, []);
 
   const dateFmt = (d: string) => new Date(d).toLocaleString(lang === "ru" ? "ru-RU" : "en-GB");
