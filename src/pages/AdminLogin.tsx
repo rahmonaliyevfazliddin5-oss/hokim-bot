@@ -18,9 +18,14 @@ export default function AdminLogin() {
 
   if (isAdmin) return <Navigate to="/admin/dashboard" replace />;
 
-  function submit(e: React.FormEvent) {
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (login(u, p)) {
+    setBusy(true);
+    const ok = await login(u, p);
+    setBusy(false);
+    if (ok) {
       toast.success("OK");
       nav("/admin/dashboard");
     } else {
