@@ -60,14 +60,12 @@ export default function AdminDashboard() {
 
   async function save() {
     if (!open) return;
-    const { error } = await supabase.from("complaints").update({ status: newStatus, admin_notes: notes || null }).eq("id", open.id);
-    if (error) { toast.error(error.message); return; }
-    await supabase.from("activity_logs").insert({
-      action: "status_changed",
-      details: `${open.tracking_code}: ${open.status} → ${newStatus}`,
-      actor: "admin",
-      complaint_id: open.id,
-    });
+    try {
+      await adminCall("update_complaint", { id: open.id, status: newStatus, admin_notes: notes || null });
+    } catch (e: any) {
+      toast.error(e.message);
+      return;
+    }
     toast.success("OK");
     setOpen(null);
     load();
