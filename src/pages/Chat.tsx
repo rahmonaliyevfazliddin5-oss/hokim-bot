@@ -43,8 +43,20 @@ function plainText(md: string) {
 
 /** Persisted hotline-action feedback (copy/sms timestamps per phone) */
 type HotlineFb = Record<string, { copied?: number; sms?: number }>;
+/** How long a copied/sent badge survives a page reload (short-lived). */
+const HOTLINE_FB_TTL = 10 * 60 * 1000; // 10 minutes
 function loadHotlineFb(): HotlineFb {
-  try { return JSON.parse(localStorage.getItem(HOTLINE_FB_KEY) || "{}"); } catch { return {}; }
+  try {
+    const raw = JSON.parse(localStorage.getItem(HOTLINE_FB_KEY) || "{}") as HotlineFb;
+    const now = Date.now();
+    const pruned: HotlineFb = {};
+    for (const [phone, entry] of Object.entries(raw)) {
+      const copied = entry.copied && now - entry.copied < HOTLINE_FB_TTL ? entry.copied : undefined;
+      const sms = entry.sms && now - entry.sms < HOTLINE_FB_TTL ? entry.sms : undefined;
+      if (copied || sms) pruned[phone] = { copied, sms };
+    }
+    return pruned;
+  } catch { return {}; }
 }
 function saveHotlineFb(fb: HotlineFb) {
   try { localStorage.setItem(HOTLINE_FB_KEY, JSON.stringify(fb)); } catch {}
@@ -382,11 +394,12 @@ export default function Chat() {
     try { return (localStorage.getItem(ACTIVE_PERSONA_KEY) as PersonaKey) || null; } catch { return null; }
   });
   const [autoSpeak, setAutoSpeak] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
+    // Default OFF: TTS must not start until the user presses "Ovozda eshitish".
+    if (typeof window === "undefined") return false;
     try {
       const v = localStorage.getItem(AUTOSPEAK_KEY);
-      return v === null ? true : v === "1";
-    } catch { return true; }
+      return v === null ? false : v === "1";
+    } catch { return false; }
   });
   // Avatar speaking modal state
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -675,7 +688,7 @@ export default function Chat() {
                     <PersonaHeader
                       personaKey={m.persona}
                       lang={lang}
-                      onAvatarClick={() => persona && openAvatar(persona, m.content, true, m.id)}
+                      onAvatarClick={() => persona && openAvatar(persona, m.content, autoSpeak, m.id)}
                     />
                   )}
                   {m.role === "assistant" ? (
