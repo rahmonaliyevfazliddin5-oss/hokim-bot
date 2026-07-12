@@ -10,7 +10,7 @@ export default function AdminStats() {
   const [items, setItems] = useState<any[]>([]);
 
   useEffect(() => {
-    supabase.from("complaints").select("*").limit(1000).then(({ data }) => setItems(data || []));
+    adminCall<{ complaints: any[] }>("list_complaints").then(({ complaints }) => setItems(complaints || [])).catch(() => {});
   }, []);
 
   const allCats = (i: any): string[] => (i.categories?.length ? i.categories : [i.category]);
