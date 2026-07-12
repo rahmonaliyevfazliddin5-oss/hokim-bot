@@ -27,8 +27,12 @@ export default function AdminDashboard() {
 
   async function load() {
     setLoading(true);
-    const { data } = await supabase.from("complaints").select("*").order("created_at", { ascending: false }).limit(500);
-    setItems(data || []);
+    try {
+      const { complaints } = await adminCall<{ complaints: any[] }>("list_complaints");
+      setItems(complaints || []);
+    } catch (e: any) {
+      toast.error(e.message);
+    }
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
