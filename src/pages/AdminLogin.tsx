@@ -50,7 +50,7 @@ export default function AdminLogin() {
             <Label>{t("admin.password")}</Label>
             <Input type="password" value={p} onChange={e => setP(e.target.value)} />
           </div>
-          <Button type="submit" className="w-full gradient-accent text-accent-foreground" size="lg">
+          <Button type="submit" disabled={busy} className="w-full gradient-accent text-accent-foreground" size="lg">
             <LogIn className="mr-2 h-4 w-4" /> {t("admin.login_btn")}
           </Button>
         </form>
