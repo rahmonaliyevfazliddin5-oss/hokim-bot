@@ -19,13 +19,13 @@ export default function Track() {
     e.preventDefault();
     if (!code.trim()) return;
     setLoading(true); setNotFound(false); setData(null);
-    const { data, error } = await supabase
-      .from("complaints").select("*")
-      .eq("tracking_code", code.trim().toUpperCase()).maybeSingle();
+    const { data, error } = await supabase.functions.invoke("track-complaint", {
+      body: { tracking_code: code.trim().toUpperCase() },
+    });
     setLoading(false);
     if (error) { toast.error(error.message); return; }
-    if (!data) { setNotFound(true); return; }
-    setData(data);
+    if (!data?.complaint) { setNotFound(true); return; }
+    setData(data.complaint);
   }
 
   const dateFmt = (d: string) => new Date(d).toLocaleString(lang === "ru" ? "ru-RU" : "en-GB");
