@@ -382,11 +382,12 @@ export default function Chat() {
     try { return (localStorage.getItem(ACTIVE_PERSONA_KEY) as PersonaKey) || null; } catch { return null; }
   });
   const [autoSpeak, setAutoSpeak] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
+    // Default OFF: TTS must not start until the user presses "Ovozda eshitish".
+    if (typeof window === "undefined") return false;
     try {
       const v = localStorage.getItem(AUTOSPEAK_KEY);
-      return v === null ? true : v === "1";
-    } catch { return true; }
+      return v === null ? false : v === "1";
+    } catch { return false; }
   });
   // Avatar speaking modal state
   const [avatarOpen, setAvatarOpen] = useState(false);
