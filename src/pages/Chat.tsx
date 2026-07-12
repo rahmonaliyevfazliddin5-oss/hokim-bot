@@ -43,8 +43,20 @@ function plainText(md: string) {
 
 /** Persisted hotline-action feedback (copy/sms timestamps per phone) */
 type HotlineFb = Record<string, { copied?: number; sms?: number }>;
+/** How long a copied/sent badge survives a page reload (short-lived). */
+const HOTLINE_FB_TTL = 10 * 60 * 1000; // 10 minutes
 function loadHotlineFb(): HotlineFb {
-  try { return JSON.parse(localStorage.getItem(HOTLINE_FB_KEY) || "{}"); } catch { return {}; }
+  try {
+    const raw = JSON.parse(localStorage.getItem(HOTLINE_FB_KEY) || "{}") as HotlineFb;
+    const now = Date.now();
+    const pruned: HotlineFb = {};
+    for (const [phone, entry] of Object.entries(raw)) {
+      const copied = entry.copied && now - entry.copied < HOTLINE_FB_TTL ? entry.copied : undefined;
+      const sms = entry.sms && now - entry.sms < HOTLINE_FB_TTL ? entry.sms : undefined;
+      if (copied || sms) pruned[phone] = { copied, sms };
+    }
+    return pruned;
+  } catch { return {}; }
 }
 function saveHotlineFb(fb: HotlineFb) {
   try { localStorage.setItem(HOTLINE_FB_KEY, JSON.stringify(fb)); } catch {}
