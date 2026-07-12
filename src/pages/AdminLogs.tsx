@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ScrollText } from "lucide-react";
 import { useI18n } from "@/i18n/I18nProvider";
-import { supabase } from "@/integrations/supabase/client";
+import { adminCall } from "@/lib/adminApi";
 
 export default function AdminLogs() {
   const { t, lang } = useI18n();
