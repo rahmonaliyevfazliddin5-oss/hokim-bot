@@ -1,35 +1,28 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { adminLogin, getAdminToken, setAdminToken } from "@/lib/adminApi";
 
 interface AdminCtx {
   isAdmin: boolean;
-  login: (u: string, p: string) => boolean;
+  login: (u: string, p: string) => Promise<boolean>;
   logout: () => void;
 }
 
 const Ctx = createContext<AdminCtx | null>(null);
 
-const KEY = "hokim_admin_session";
-// NOTE: MVP-level gate. For production use real auth.
-const ADMIN_USER = "fazliddin";
-const ADMIN_PASS = "qwerty";
-
 export function AdminProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    setIsAdmin(sessionStorage.getItem(KEY) === "1");
+    setIsAdmin(!!getAdminToken());
   }, []);
 
-  const login = (u: string, p: string) => {
-    if (u === ADMIN_USER && p === ADMIN_PASS) {
-      sessionStorage.setItem(KEY, "1");
-      setIsAdmin(true);
-      return true;
-    }
-    return false;
+  const login = async (u: string, p: string) => {
+    const ok = await adminLogin(u, p);
+    setIsAdmin(ok);
+    return ok;
   };
   const logout = () => {
-    sessionStorage.removeItem(KEY);
+    setAdminToken(null);
     setIsAdmin(false);
   };
 

@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { ScrollText } from "lucide-react";
 import { useI18n } from "@/i18n/I18nProvider";
-import { supabase } from "@/integrations/supabase/client";
+import { adminCall } from "@/lib/adminApi";
 
 export default function AdminLogs() {
   const { t, lang } = useI18n();
   const [logs, setLogs] = useState<any[]>([]);
 
   useEffect(() => {
-    supabase.from("activity_logs").select("*").order("created_at", { ascending: false }).limit(200).then(({ data }) => setLogs(data || []));
+    adminCall<{ logs: any[] }>("list_logs").then(({ logs }) => setLogs(logs || [])).catch(() => {});
   }, []);
 
   const dateFmt = (d: string) => new Date(d).toLocaleString(lang === "ru" ? "ru-RU" : "en-GB");

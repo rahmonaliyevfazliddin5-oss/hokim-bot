@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { FileText, Clock, CheckCircle2, XCircle, Inbox, Eye, MapPin, ExternalLink, Sparkles } from "lucide-react";
 import { useI18n } from "@/i18n/I18nProvider";
-import { supabase } from "@/integrations/supabase/client";
+import { adminCall } from "@/lib/adminApi";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,8 +27,12 @@ export default function AdminDashboard() {
 
   async function load() {
     setLoading(true);
-    const { data } = await supabase.from("complaints").select("*").order("created_at", { ascending: false }).limit(500);
-    setItems(data || []);
+    try {
+      const { complaints } = await adminCall<{ complaints: any[] }>("list_complaints");
+      setItems(complaints || []);
+    } catch (e: any) {
+      toast.error(e.message);
+    }
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
@@ -56,14 +60,12 @@ export default function AdminDashboard() {
 
   async function save() {
     if (!open) return;
-    const { error } = await supabase.from("complaints").update({ status: newStatus, admin_notes: notes || null }).eq("id", open.id);
-    if (error) { toast.error(error.message); return; }
-    await supabase.from("activity_logs").insert({
-      action: "status_changed",
-      details: `${open.tracking_code}: ${open.status} → ${newStatus}`,
-      actor: "admin",
-      complaint_id: open.id,
-    });
+    try {
+      await adminCall("update_complaint", { id: open.id, status: newStatus, admin_notes: notes || null });
+    } catch (e: any) {
+      toast.error(e.message);
+      return;
+    }
     toast.success("OK");
     setOpen(null);
     load();

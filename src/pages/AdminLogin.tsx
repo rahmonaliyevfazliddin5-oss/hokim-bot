@@ -18,9 +18,14 @@ export default function AdminLogin() {
 
   if (isAdmin) return <Navigate to="/admin/dashboard" replace />;
 
-  function submit(e: React.FormEvent) {
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (login(u, p)) {
+    setBusy(true);
+    const ok = await login(u, p);
+    setBusy(false);
+    if (ok) {
       toast.success("OK");
       nav("/admin/dashboard");
     } else {
@@ -45,7 +50,7 @@ export default function AdminLogin() {
             <Label>{t("admin.password")}</Label>
             <Input type="password" value={p} onChange={e => setP(e.target.value)} />
           </div>
-          <Button type="submit" className="w-full gradient-accent text-accent-foreground" size="lg">
+          <Button type="submit" disabled={busy} className="w-full gradient-accent text-accent-foreground" size="lg">
             <LogIn className="mr-2 h-4 w-4" /> {t("admin.login_btn")}
           </Button>
         </form>

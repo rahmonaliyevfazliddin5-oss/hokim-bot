@@ -1,23 +1,23 @@
 import { useEffect, useState } from "react";
 import { User, Phone, FileText } from "lucide-react";
 import { useI18n } from "@/i18n/I18nProvider";
-import { supabase } from "@/integrations/supabase/client";
+import { adminCall } from "@/lib/adminApi";
 
 export default function AdminUsers() {
   const { t } = useI18n();
   const [items, setItems] = useState<any[]>([]);
 
   useEffect(() => {
-    supabase.from("complaints").select("citizen_name, citizen_phone, created_at").limit(1000).then(({ data }) => {
+    adminCall<{ complaints: any[] }>("list_complaints").then(({ complaints }) => {
       const map = new Map<string, any>();
-      (data || []).forEach(d => {
+      (complaints || []).forEach(d => {
         const key = `${d.citizen_name}|${d.citizen_phone}`;
         const ex = map.get(key);
         if (ex) { ex.count++; if (d.created_at > ex.last) ex.last = d.created_at; }
         else map.set(key, { name: d.citizen_name, phone: d.citizen_phone, count: 1, last: d.created_at });
       });
       setItems(Array.from(map.values()).sort((a, b) => b.count - a.count));
-    });
+    }).catch(() => {});
   }, []);
 
   return (

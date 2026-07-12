@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "@/i18n/I18nProvider";
-import { supabase } from "@/integrations/supabase/client";
+import { adminCall } from "@/lib/adminApi";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend } from "recharts";
 
 const COLORS = ["hsl(210 75% 52%)", "hsl(38 92% 50%)", "hsl(152 60% 38%)", "hsl(0 75% 52%)", "hsl(215 50% 35%)", "hsl(222 60% 18%)"];
@@ -10,7 +10,7 @@ export default function AdminStats() {
   const [items, setItems] = useState<any[]>([]);
 
   useEffect(() => {
-    supabase.from("complaints").select("*").limit(1000).then(({ data }) => setItems(data || []));
+    adminCall<{ complaints: any[] }>("list_complaints").then(({ complaints }) => setItems(complaints || [])).catch(() => {});
   }, []);
 
   const allCats = (i: any): string[] => (i.categories?.length ? i.categories : [i.category]);

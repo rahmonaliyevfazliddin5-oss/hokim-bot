@@ -70,8 +70,8 @@ export default function Submit() {
         contentType: img.file.type, upsert: false,
       });
       if (error) throw error;
-      const { data } = supabase.storage.from("complaint-images").getPublicUrl(path);
-      out.push(data.publicUrl);
+      // Bucket is private; store the object path. Signed URLs are generated server-side on read.
+      out.push(path);
     }
     return out;
   }
@@ -91,32 +91,28 @@ export default function Submit() {
       const dName = districtObj?.name || form.district;
       const fullLocation = [dName, form.mahalla, form.address].filter(Boolean).join(", ");
 
-      const { error } = await supabase.from("complaints").insert({
-        citizen_name: form.citizen_name.trim(),
-        citizen_phone: form.citizen_phone.trim(),
-        region: "fargona",
-        district: dName,
-        mahalla: form.mahalla,
-        location: fullLocation,
-        text: form.text.trim(),
-        category: detail[0].category,
-        categories: detail.map(d => d.category),
-        category_details: detail as any,
-        ai_confidence: detail[0].confidence,
-        ai_response: aiResp,
-        tracking_code: code,
-        latitude: coords?.lat ?? null,
-        longitude: coords?.lon ?? null,
-        map_link,
-        image_urls,
+      const { data, error } = await supabase.functions.invoke("submit-complaint", {
+        body: {
+          citizen_name: form.citizen_name.trim(),
+          citizen_phone: form.citizen_phone.trim(),
+          district: dName,
+          mahalla: form.mahalla,
+          location: fullLocation,
+          text: form.text.trim(),
+          categories: detail.map(d => d.category),
+          category_details: detail,
+          ai_confidence: detail[0].confidence,
+          ai_response: aiResp,
+          tracking_code: code,
+          latitude: coords?.lat ?? null,
+          longitude: coords?.lon ?? null,
+          map_link,
+          image_urls,
+        },
       });
       if (error) throw error;
-      await supabase.from("activity_logs").insert({
-        action: "complaint_created",
-        details: `Code: ${code}, cats: ${detail.map(d => d.category).join(",")}`,
-        actor: form.citizen_name,
-      });
-      setResult({ code, cats: detail.map(d => d.category), response: aiResp });
+      if (data?.error) throw new Error(data.error);
+      setResult({ code: data?.tracking_code || code, cats: detail.map(d => d.category), response: aiResp });
     } catch (err: any) {
       toast.error(err.message);
     } finally {
