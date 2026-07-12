@@ -70,8 +70,8 @@ export default function Submit() {
         contentType: img.file.type, upsert: false,
       });
       if (error) throw error;
-      const { data } = supabase.storage.from("complaint-images").getPublicUrl(path);
-      out.push(data.publicUrl);
+      // Bucket is private; store the object path. Signed URLs are generated server-side on read.
+      out.push(path);
     }
     return out;
   }
