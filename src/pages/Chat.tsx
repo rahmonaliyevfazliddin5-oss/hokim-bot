@@ -676,7 +676,7 @@ export default function Chat() {
                     <PersonaHeader
                       personaKey={m.persona}
                       lang={lang}
-                      onAvatarClick={() => persona && openAvatar(persona, m.content, true, m.id)}
+                      onAvatarClick={() => persona && openAvatar(persona, m.content, autoSpeak, m.id)}
                     />
                   )}
                   {m.role === "assistant" ? (
