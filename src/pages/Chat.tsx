@@ -12,6 +12,7 @@ import {
   detectSafetyTopic, SAFETY_REDIRECTS, voiceIdFor,
 } from "@/lib/persona";
 import { cn } from "@/lib/utils";
+import { SEO } from "@/components/SEO";
 
 interface Msg { id?: string; role: "user" | "assistant"; content: string; persona?: PersonaKey; safety?: boolean; }
 
