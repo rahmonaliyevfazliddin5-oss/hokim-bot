@@ -271,6 +271,9 @@ tr:nth-child(even) td{background:#fafafa}
               Filtrlarni tozalash ({activeFilters})
             </Button>
           )}
+          <Button size="sm" variant="outline" onClick={runEscalation} disabled={escalating} className="text-xs">
+            <AlertTriangle className="mr-1 h-3.5 w-3.5 text-warning-foreground" /> {escalating ? "..." : "Muddati o'tganlarni eskalatsiya"}
+          </Button>
           <Button size="sm" variant="outline" onClick={exportCSV} className="text-xs">
             <Download className="mr-1 h-3.5 w-3.5" /> CSV
           </Button>
