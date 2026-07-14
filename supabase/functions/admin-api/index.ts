@@ -772,14 +772,142 @@ Deno.serve(async (req) => {
       if (error) return json({ error: error.message }, 500);
       let correct = 0, incorrect = 0;
       const recent: any[] = [];
+      const byComplaint: Record<string, { verdict: string | null; comment: string; created_at: string }> = {};
       for (const r of data ?? []) {
-        const v = /verdict=(\w+)/.exec(r.details ?? "")?.[1];
+        const v = /verdict=(\w+)/.exec(r.details ?? "")?.[1] ?? null;
+        const cm = /\|comment=([\s\S]+)$/.exec(r.details ?? "")?.[1]?.trim() ?? "";
         if (v === "correct") correct++;
         else if (v === "incorrect") incorrect++;
-        if (recent.length < 50) recent.push({ complaint_id: r.complaint_id, verdict: v, created_at: r.created_at });
+        if (recent.length < 100) recent.push({
+          complaint_id: r.complaint_id, verdict: v, comment: cm, created_at: r.created_at,
+        });
+        // Keep only latest per complaint (data is ordered desc)
+        if (r.complaint_id && !byComplaint[r.complaint_id]) {
+          byComplaint[r.complaint_id] = { verdict: v, comment: cm, created_at: r.created_at };
+        }
       }
       const total = correct + incorrect;
-      return json({ correct, incorrect, total, accuracy: total ? correct / total : null, recent });
+      return json({
+        correct, incorrect, total,
+        accuracy: total ? correct / total : null,
+        recent, by_complaint: byComplaint,
+      });
+    }
+
+    // ---- Audit log: routing decisions, edits and views (with filters) ----
+    if (action === "routing_audit") {
+      const { q, actor, actions, from, to, limit } = params as {
+        q?: string; actor?: string; actions?: string[]; from?: string; to?: string; limit?: number;
+      };
+      const defaultActions = [
+        "ai_classified", "routed", "status_changed", "response_sent",
+        "routing_feedback", "escalated", "admin_viewed", "admin_login_success",
+      ];
+      const acts = Array.isArray(actions) && actions.length ? actions : defaultActions;
+      let query = supabase.from("activity_logs").select("*")
+        .in("action", acts)
+        .order("created_at", { ascending: false })
+        .limit(Math.min(limit ?? 300, 2000));
+      if (typeof from === "string" && from) query = query.gte("created_at", from);
+      if (typeof to === "string" && to) query = query.lte("created_at", to);
+      if (typeof actor === "string" && actor) query = query.ilike("actor", `%${actor}%`);
+      if (typeof q === "string" && q) {
+        const s = q.replace(/[%,]/g, "");
+        query = query.or(`details.ilike.%${s}%,actor.ilike.%${s}%,action.ilike.%${s}%`);
+      }
+      const { data, error } = await query;
+      if (error) return json({ error: error.message }, 500);
+      return json({ logs: data ?? [] });
+    }
+
+    // ---- Log admin viewing a complaint (deduped per hour) ----
+    if (action === "admin_log_view") {
+      const { id } = params as { id?: string };
+      if (typeof id !== "string" || !id) return json({ error: "id_required" }, 400);
+      const { data: cx } = await supabase.from("complaints").select("tracking_code").eq("id", id).maybeSingle();
+      if (!cx) return json({ error: "not_found" }, 404);
+      const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { count } = await supabase.from("activity_logs")
+        .select("id", { count: "exact", head: true })
+        .eq("complaint_id", id).eq("action", "admin_viewed").eq("actor", "admin")
+        .gte("created_at", since);
+      if ((count ?? 0) === 0) {
+        await audit("admin_viewed", "admin", `${cx.tracking_code}: admin ko'rdi`, id);
+      }
+      return json({ ok: true });
+    }
+
+    // ---- Auto-escalation: complaints whose ETA has passed ----
+    if (action === "escalate_overdue") {
+      const nowMs = Date.now();
+      const { data: rows, error } = await supabase
+        .from("complaints")
+        .select("id, tracking_code, status, severity, routing_target, responsible_org, eta_days, created_at")
+        .not("eta_days", "is", null)
+        .not("status", "in", "(hal_qilindi,bajarildi,rad_etildi)")
+        .limit(2000);
+      if (error) return json({ error: error.message }, 500);
+
+      const nextSeverity = (s: string | null) =>
+        s === "oddiy" ? "orta" : s === "orta" ? "yuqori" : s ?? "orta";
+      const escalateStatus = (s: string | null) => {
+        // Bump into "under review" if it's still early-stage
+        const early = ["qabul_qilindi", "ai_tahlil", "mahallaga_yuborildi", "hokimiyatga_yuborildi", "yangi"];
+        return early.includes(s ?? "") ? "korib_chiqilmoqda" : s ?? "korib_chiqilmoqda";
+      };
+
+      let escalated = 0;
+      const details: Array<Record<string, unknown>> = [];
+
+      for (const r of rows ?? []) {
+        const dueMs = new Date(r.created_at).getTime() + (r.eta_days as number) * 86400000;
+        if (dueMs >= nowMs) continue;
+        const overdueDays = Math.floor((nowMs - dueMs) / 86400000);
+
+        const oldSev = r.severity as string | null;
+        const oldStatus = r.status as string | null;
+        const oldRoute = r.routing_target as string | null;
+
+        const newSev = nextSeverity(oldSev);
+        const newStatus = escalateStatus(oldStatus);
+        // If mahalla-routed and overdue > 3 days, kick up to hokimiyat.
+        const newRoute = oldRoute === "mahalla" && overdueDays > 3 ? "hokimiyat" : oldRoute;
+
+        // Avoid duplicate escalation for the same day
+        const since = new Date(nowMs - 20 * 60 * 60 * 1000).toISOString();
+        const { count: recentEsc } = await supabase.from("activity_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("complaint_id", r.id).eq("action", "escalated")
+          .gte("created_at", since);
+        if ((recentEsc ?? 0) > 0) continue;
+
+        const patch: Record<string, unknown> = {};
+        if (newSev !== oldSev) patch.severity = newSev;
+        if (newStatus !== oldStatus) patch.status = newStatus;
+        if (newRoute !== oldRoute) patch.routing_target = newRoute;
+        if (Object.keys(patch).length === 0) continue;
+
+        const { error: upErr } = await supabase.from("complaints").update(patch).eq("id", r.id);
+        if (upErr) continue;
+
+        const reason = `AI eskalatsiya: ETA ${r.eta_days} kun edi, ${overdueDays} kun kechikdi`
+          + (newSev !== oldSev ? ` · og'irlik: ${oldSev ?? "?"} → ${newSev}` : "")
+          + (newRoute !== oldRoute ? ` · yo'nalish: ${oldRoute ?? "?"} → ${newRoute}` : "");
+
+        await audit("escalated", "system", `${r.tracking_code}: ${reason}`, r.id);
+        if (newStatus !== oldStatus) {
+          await audit("status_changed", "system",
+            `${r.tracking_code}: ${oldStatus ?? "?"} → ${newStatus} (auto-eskalatsiya)`, r.id);
+        }
+        escalated++;
+        details.push({
+          tracking_code: r.tracking_code, overdue_days: overdueDays,
+          severity: `${oldSev} → ${newSev}`,
+          status: `${oldStatus} → ${newStatus}`,
+          routing: `${oldRoute} → ${newRoute}`,
+        });
+      }
+      return json({ ok: true, escalated, details });
     }
 
     return json({ error: "unknown_action" }, 400);

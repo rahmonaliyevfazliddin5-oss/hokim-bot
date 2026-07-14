@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { FileText, Clock, CheckCircle2, XCircle, Inbox, Eye, MapPin, ExternalLink, Sparkles, Download, FileDown, ThumbsUp, ThumbsDown } from "lucide-react";
+import { FileText, Clock, CheckCircle2, XCircle, Inbox, Eye, MapPin, ExternalLink, Sparkles, Download, FileDown, ThumbsUp, ThumbsDown, AlertTriangle } from "lucide-react";
 import { useI18n } from "@/i18n/I18nProvider";
 import { adminCall } from "@/lib/adminApi";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -30,7 +30,8 @@ export default function AdminDashboard() {
   const [open, setOpen] = useState<any | null>(null);
   const [newStatus, setNewStatus] = useState("");
   const [notes, setNotes] = useState("");
-  const [fbStats, setFbStats] = useState<{ correct: number; incorrect: number; total: number; accuracy: number | null } | null>(null);
+  const [fbStats, setFbStats] = useState<{ correct: number; incorrect: number; total: number; accuracy: number | null; by_complaint?: Record<string, { verdict: string | null; comment: string; created_at: string }> } | null>(null);
+  const [escalating, setEscalating] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -47,6 +48,17 @@ export default function AdminDashboard() {
       const s = await adminCall<any>("routing_feedback_stats");
       setFbStats(s);
     } catch { /* ignore */ }
+  }
+  async function runEscalation() {
+    setEscalating(true);
+    try {
+      const r = await adminCall<{ escalated: number }>("escalate_overdue");
+      toast.success(r.escalated > 0 ? `${r.escalated} ta murojaat eskalatsiya qilindi` : "Muddati o'tgan murojaatlar topilmadi");
+      if (r.escalated > 0) load();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+    setEscalating(false);
   }
   useEffect(() => { load(); loadFeedback(); }, []);
 
@@ -105,17 +117,23 @@ export default function AdminDashboard() {
     return parts.join("_") + "." + ext;
   }
 
+  const fbMap = fbStats?.by_complaint ?? {};
+  const verdictLabel = (v: string | null | undefined) =>
+    v === "correct" ? "to'g'ri" : v === "incorrect" ? "noto'g'ri" : "";
+
   function exportCSV() {
     if (filtered.length === 0) { toast.error("Eksport uchun ma'lumot yo'q"); return; }
-    const header = ["tracking_code", "created_at", "status", "severity", "routing_target", "responsible_org", "categories", "mahalla", "district", "citizen_name", "citizen_phone", "location", "eta_days", "text", "admin_notes"];
+    const header = ["tracking_code", "created_at", "status", "severity", "routing_target", "responsible_org", "categories", "mahalla", "district", "citizen_name", "citizen_phone", "location", "eta_days", "text", "admin_notes", "ai_feedback", "ai_feedback_comment"];
     const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""').replace(/\n/g, " ")}"`;
     const meta = `# Hokim AI murojaatlar eksport\n# Vaqt: ${new Date().toISOString()}\n# ${filterSummary()}\n# Yozuvlar: ${filtered.length}\n`;
     const lines = [header.join(",")];
     for (const r of filtered) {
+      const fb = fbMap[r.id] ?? null;
       lines.push([
         r.tracking_code, r.created_at, r.status, r.severity, r.routing_target, r.responsible_org,
         (r.categories?.length ? r.categories : [r.category]).join("; "),
         r.mahalla, r.district, r.citizen_name, r.citizen_phone, r.location, r.eta_days, r.text, r.admin_notes,
+        verdictLabel(fb?.verdict), fb?.comment ?? "",
       ].map(esc).join(","));
     }
     const blob = new Blob(["\uFEFF" + meta + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
@@ -133,17 +151,24 @@ export default function AdminDashboard() {
     if (!win) { toast.error("Popup bloklangan"); return; }
     const esc = (v: any) => String(v ?? "").replace(/[&<>]/g, c => c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;");
     const filename = buildFilename("pdf");
-    const rowsHtml = filtered.map(r => `<tr>
-      <td>${esc(r.tracking_code)}</td>
-      <td>${esc(dateFmt(r.created_at))}</td>
-      <td>${esc(r.status)}</td>
-      <td>${esc(r.severity ?? "—")}</td>
-      <td>${esc(r.routing_target ?? "—")}</td>
-      <td>${esc(r.mahalla ?? "—")}</td>
-      <td>${esc(r.responsible_org ?? "—")}</td>
-      <td>${esc(r.citizen_name)}<br/><small>${esc(r.citizen_phone ?? "")}</small></td>
-      <td>${esc((r.text ?? "").slice(0, 200))}</td>
-    </tr>`).join("");
+    const rowsHtml = filtered.map(r => {
+      const fb = fbMap[r.id] ?? null;
+      const fbCell = fb
+        ? `<b style="color:${fb.verdict === "correct" ? "#16a34a" : "#dc2626"}">${esc(verdictLabel(fb.verdict))}</b>${fb.comment ? `<br/><small>${esc(fb.comment)}</small>` : ""}`
+        : "—";
+      return `<tr>
+        <td>${esc(r.tracking_code)}</td>
+        <td>${esc(dateFmt(r.created_at))}</td>
+        <td>${esc(r.status)}</td>
+        <td>${esc(r.severity ?? "—")}</td>
+        <td>${esc(r.routing_target ?? "—")}</td>
+        <td>${esc(r.mahalla ?? "—")}</td>
+        <td>${esc(r.responsible_org ?? "—")}</td>
+        <td>${esc(r.citizen_name)}<br/><small>${esc(r.citizen_phone ?? "")}</small></td>
+        <td>${esc((r.text ?? "").slice(0, 200))}</td>
+        <td>${fbCell}</td>
+      </tr>`;
+    }).join("");
     win.document.write(`<!doctype html><html><head><meta charset="utf-8"/><title>${esc(filename)}</title>
 <style>body{font-family:-apple-system,sans-serif;padding:24px;color:#111}h1{font-size:18px;margin:0 0 4px}
 .meta{color:#666;font-size:12px;margin-bottom:6px}
@@ -157,7 +182,7 @@ tr:nth-child(even) td{background:#fafafa}
 <div class="meta">Eksport: ${new Date().toLocaleString()} · Yozuvlar: ${filtered.length}</div>
 <div class="filters"><b>Filtr:</b> ${esc(filterSummary())}</div>
 <button class="noprint" onclick="window.print()">PDF sifatida saqlash / Chop etish</button>
-<table><thead><tr><th>Kod</th><th>Vaqt</th><th>Holat</th><th>Og'irlik</th><th>Yo'nalish</th><th>MFY</th><th>Mas'ul</th><th>Fuqaro</th><th>Matn</th></tr></thead>
+<table><thead><tr><th>Kod</th><th>Vaqt</th><th>Holat</th><th>Og'irlik</th><th>Yo'nalish</th><th>MFY</th><th>Mas'ul</th><th>Fuqaro</th><th>Matn</th><th>AI baho</th></tr></thead>
 <tbody>${rowsHtml}</tbody></table>
 <script>setTimeout(function(){document.title=${JSON.stringify(filename)};window.print();},300);</script>
 </body></html>`);
@@ -166,6 +191,7 @@ tr:nth-child(even) td{background:#fafafa}
 
   function openItem(it: any) {
     setOpen(it); setNewStatus(it.status); setNotes(it.admin_notes || "");
+    adminCall("admin_log_view", { id: it.id }).catch(() => { /* non-fatal */ });
   }
 
   async function save() {
@@ -245,6 +271,9 @@ tr:nth-child(even) td{background:#fafafa}
               Filtrlarni tozalash ({activeFilters})
             </Button>
           )}
+          <Button size="sm" variant="outline" onClick={runEscalation} disabled={escalating} className="text-xs">
+            <AlertTriangle className="mr-1 h-3.5 w-3.5 text-warning-foreground" /> {escalating ? "..." : "Muddati o'tganlarni eskalatsiya"}
+          </Button>
           <Button size="sm" variant="outline" onClick={exportCSV} className="text-xs">
             <Download className="mr-1 h-3.5 w-3.5" /> CSV
           </Button>
@@ -354,6 +383,16 @@ tr:nth-child(even) td{background:#fafafa}
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {fbMap[open.id] && (
+                <div className={`rounded-lg border p-3 ${fbMap[open.id].verdict === "correct" ? "bg-success/10 border-success/30" : "bg-destructive/10 border-destructive/30"}`}>
+                  <div className="text-xs font-bold uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                    {fbMap[open.id].verdict === "correct" ? <ThumbsUp className="h-3.5 w-3.5 text-success" /> : <ThumbsDown className="h-3.5 w-3.5 text-destructive" />}
+                    Fuqaro bahosi: {verdictLabel(fbMap[open.id].verdict)}
+                  </div>
+                  {fbMap[open.id].comment && <p className="text-xs whitespace-pre-wrap">{fbMap[open.id].comment}</p>}
                 </div>
               )}
 
