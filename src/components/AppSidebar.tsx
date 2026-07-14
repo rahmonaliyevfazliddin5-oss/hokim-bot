@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { Home, FilePlus, Search, LayoutDashboard, BarChart3, Users, ScrollText, LogOut, MessageSquare, KeyRound, ShieldCheck } from "lucide-react";
+import { Home, FilePlus, Search, LayoutDashboard, BarChart3, Users, ScrollText, LogOut, MessageSquare, KeyRound, ShieldCheck, Timer } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, useSidebar
@@ -11,7 +11,7 @@ import logoAsset from "@/assets/hokim-logo.png.asset.json";
 
 export function AppSidebar() {
   const { t } = useI18n();
-  const { isAdmin, logout } = useAdmin();
+  const { isAdmin, logout, role } = useAdmin();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const { pathname } = useLocation();
@@ -26,11 +26,12 @@ export function AppSidebar() {
   const adminItems = [
     { url: "/admin/dashboard", icon: LayoutDashboard, label: t("nav.dashboard") },
     { url: "/admin/stats", icon: BarChart3, label: t("nav.stats") },
-    { url: "/admin/users", icon: Users, label: t("nav.users") },
+    { url: "/admin/users", icon: Users, label: t("nav.users"), superOnly: true },
     { url: "/admin/logs", icon: ScrollText, label: t("nav.logs") },
-    { url: "/admin/mahalla-passwords", icon: KeyRound, label: "Mahalla parollari" },
-    { url: "/admin/mahalla-security", icon: ShieldCheck, label: "Mahalla xavfsizlik" },
-  ];
+    { url: "/admin/escalation-rules", icon: Timer, label: "Eskalatsiya qoidalari", superOnly: true },
+    { url: "/admin/mahalla-passwords", icon: KeyRound, label: "Mahalla parollari", superOnly: true },
+    { url: "/admin/mahalla-security", icon: ShieldCheck, label: "Mahalla xavfsizlik", superOnly: true },
+  ].filter(i => !i.superOnly || role === "superadmin");
 
   const linkCls = (active: boolean) => cn("flex items-center gap-3 w-full", active && "font-semibold");
 
