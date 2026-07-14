@@ -59,8 +59,26 @@ Deno.serve(async (req) => {
       .eq("complaint_id", data.id)
       .order("created_at", { ascending: true });
 
+    // Strip internal fields (IP addresses, actor identifiers) from public timeline details.
+    const sanitizeDetails = (s: string | null): string | null => {
+      if (!s) return s;
+      return s
+        .split("|")
+        .map((seg) => seg.trim())
+        .filter((seg) => {
+          const k = seg.split("=")[0]?.toLowerCase() ?? "";
+          return k !== "ip" && k !== "actor" && k !== "user_agent" && k !== "ua";
+        })
+        .join(" | ");
+    };
+    const timeline = (logs ?? []).map((l: any) => ({
+      action: l.action,
+      details: sanitizeDetails(l.details),
+      created_at: l.created_at,
+    }));
+
     const { id: _hidden, ...safe } = data as any;
-    const complaint = { ...safe, image_urls: await signImages(data.image_urls), timeline: logs ?? [] };
+    const complaint = { ...safe, image_urls: await signImages(data.image_urls), timeline };
     return json({ complaint });
   } catch (e) {
     console.error("unhandled:", e); return json({ error: "internal_error" }, 500);
