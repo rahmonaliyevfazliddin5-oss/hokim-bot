@@ -102,6 +102,11 @@ export default function Track() {
 
   return (
     <div className="max-w-2xl mx-auto">
+      <SEO
+        title="Murojaatni tekshirish — Hokim AI"
+        description="HOK-YYYYMMDD-NNNN kod bo'yicha murojaat holatini kuzating: status, AI tahlili va javoblar."
+        path="/track"
+      />
       <div className="mb-6">
         <h1 className="text-3xl md:text-4xl font-extrabold mb-1">{t("track.title")}</h1>
         <p className="text-muted-foreground">{t("track.subtitle")}</p>
