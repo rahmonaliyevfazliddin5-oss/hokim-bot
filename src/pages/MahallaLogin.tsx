@@ -22,11 +22,13 @@ export default function MahallaLogin() {
     e.preventDefault();
     if (!m) return toast.error("MFY tanlang");
     setBusy(true);
-    const ok = await login(m, p);
+    const res = await login(m, p);
     setBusy(false);
-    if (ok) {
+    if (res.ok) {
       toast.success("Kirish muvaffaqiyatli");
       nav("/mahalla/dashboard");
+    } else if (res.error === "too_many_attempts") {
+      toast.error(`Juda ko'p urinish. ${res.retryAfter ?? 15} daqiqadan so'ng qayta urinib ko'ring.`);
     } else {
       toast.error("Noto'g'ri MFY yoki parol");
     }
