@@ -81,6 +81,29 @@ export default function Home() {
           <div><div className="text-xs text-muted-foreground">Manzil</div><div className="font-bold">Farg'ona tumani hokimligi</div></div>
         </div>
       </section>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{
+        __html: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "GovernmentOrganization",
+          "name": "Hokim AI — Farg'ona tumani hokimligi",
+          "url": "https://hokim-bot.lovable.app/",
+          "logo": "https://hokim-bot.lovable.app/favicon.ico",
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "telephone": "+998-73-244-44-77",
+            "contactType": "customer service",
+            "areaServed": "UZ",
+            "availableLanguage": ["uz", "ru"]
+          },
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "Mustaqillik ko'chasi, 24",
+            "addressLocality": "Farg'ona",
+            "addressRegion": "Farg'ona viloyati",
+            "addressCountry": "UZ"
+          }
+        })
+      }} />
     </div>
   );
 }
