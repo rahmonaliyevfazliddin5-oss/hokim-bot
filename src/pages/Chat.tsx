@@ -608,6 +608,11 @@ export default function Chat() {
 
   return (
     <div className="max-w-3xl mx-auto flex flex-col h-[calc(100vh-12rem)]">
+      <SEO
+        title="AI yordamchi — Hokim AI"
+        description="Farg'ona tumani hokimligi bo'limlari avatarlaridan javob oling: gaz, svet, ta'lim, sog'liq va boshqa yo'nalishlar."
+        path="/chat"
+      />
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-extrabold flex items-center gap-2"><MessageSquare className="h-6 w-6 text-accent" />{t("chat.title")}</h1>
