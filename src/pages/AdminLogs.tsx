@@ -56,6 +56,73 @@ export default function AdminLogs() {
     return s;
   }, [logs]);
 
+  function filterSummary() {
+    const bits: string[] = [];
+    if (q) bits.push(`q="${q}"`);
+    if (actor) bits.push(`actor=${actor}`);
+    if (act !== "all") bits.push(`amal=${ACTION_LABELS[act] ?? act}`);
+    if (from) bits.push(`from=${from}`);
+    if (to) bits.push(`to=${to}`);
+    return bits.length ? bits.join(" · ") : "Filtr yo'q";
+  }
+  function buildFilename(ext: string) {
+    const d = new Date().toISOString().slice(0, 10);
+    const parts = ["hokim-audit", d];
+    if (act !== "all") parts.push(act);
+    if (from) parts.push(from);
+    if (to) parts.push(to);
+    return parts.join("_") + "." + ext;
+  }
+  function exportCSV() {
+    if (!logs.length) { toast.error("Ma'lumot yo'q"); return; }
+    const header = ["created_at", "action", "actor", "complaint_id", "details"];
+    const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""').replace(/\n/g, " ")}"`;
+    const meta = `# Hokim AI audit log\n# Vaqt: ${new Date().toISOString()}\n# ${filterSummary()}\n# Yozuvlar: ${logs.length}\n`;
+    const lines = [header.join(",")];
+    for (const l of logs) {
+      lines.push([l.created_at, l.action, l.actor, l.complaint_id, l.details].map(esc).join(","));
+    }
+    const blob = new Blob(["\uFEFF" + meta + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = buildFilename("csv");
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    toast.success(`${logs.length} yozuv CSV ga eksport qilindi`);
+  }
+  function exportPDF() {
+    if (!logs.length) { toast.error("Ma'lumot yo'q"); return; }
+    const win = window.open("", "_blank");
+    if (!win) { toast.error("Popup bloklangan"); return; }
+    const esc = (v: any) => String(v ?? "").replace(/[&<>]/g, c => c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;");
+    const filename = buildFilename("pdf");
+    const rowsHtml = logs.map(l => `<tr>
+      <td>${esc(dateFmt(l.created_at))}</td>
+      <td><b>${esc(ACTION_LABELS[l.action] ?? l.action)}</b><br/><small style="color:#888">${esc(l.action)}</small></td>
+      <td>${esc(l.actor)}</td>
+      <td>${l.complaint_id ? `<code>${esc(String(l.complaint_id).slice(0, 8))}</code>` : "—"}</td>
+      <td>${esc(l.details ?? "")}</td>
+    </tr>`).join("");
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"/><title>${esc(filename)}</title>
+<style>body{font-family:-apple-system,sans-serif;padding:24px;color:#111}h1{font-size:18px;margin:0 0 4px}
+.meta{color:#666;font-size:12px;margin-bottom:6px}
+.filters{color:#333;font-size:12px;margin-bottom:16px;padding:6px 10px;background:#f5f7fa;border-left:3px solid #3b82f6}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th,td{border:1px solid #ddd;padding:6px 8px;text-align:left;vertical-align:top}
+th{background:#f5f5f5;text-transform:uppercase;font-size:10px}
+tr:nth-child(even) td{background:#fafafa}
+@media print{.noprint{display:none}}</style></head><body>
+<h1>Hokim AI — Audit log</h1>
+<div class="meta">Eksport: ${new Date().toLocaleString()} · Yozuvlar: ${logs.length}</div>
+<div class="filters"><b>Filtr:</b> ${esc(filterSummary())}</div>
+<button class="noprint" onclick="window.print()">PDF sifatida saqlash / Chop etish</button>
+<table><thead><tr><th>Vaqt</th><th>Amal</th><th>Aktor</th><th>Kod</th><th>Tafsilot</th></tr></thead>
+<tbody>${rowsHtml}</tbody></table>
+<script>setTimeout(function(){document.title=${JSON.stringify(filename)};window.print();},300);</script>
+</body></html>`);
+    win.document.close();
+  }
+
+
   return (
     <div className="max-w-5xl mx-auto">
       <h1 className="text-3xl font-extrabold mb-2">{t("admin.logs_title")}</h1>
