@@ -6,18 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { useI18n } from "@/i18n/I18nProvider";
 import { classifyMulti, generateTrackingCode, autoResponseMulti } from "@/lib/ai";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { FARGONA_DISTRICTS } from "@/lib/fargona";
+import { FARGONA_TUMAN_NAME } from "@/lib/fargona";
+import { MahallaCombobox } from "@/components/MahallaCombobox";
 
 const schema = z.object({
   citizen_name: z.string().trim().min(2).max(120),
   citizen_phone: z.string().trim().min(7).max(30),
-  district: z.string().min(1, "Tuman tanlang"),
-  mahalla: z.string().min(1, "Mahalla tanlang"),
+  mahalla: z.string().min(1, "MFY tanlang"),
   address: z.string().trim().min(2).max(200),
   text: z.string().trim().min(10, "Kamida 10 ta belgi").max(2000),
 });
@@ -25,7 +25,7 @@ const schema = z.object({
 export default function Submit() {
   const { t } = useI18n();
   const [form, setForm] = useState({
-    citizen_name: "", citizen_phone: "", district: "", mahalla: "", address: "", text: "",
+    citizen_name: "", citizen_phone: "", mahalla: "", address: "", text: "",
   });
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
@@ -38,7 +38,6 @@ export default function Submit() {
   const galleryInput = useRef<HTMLInputElement>(null);
 
   const update = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
-  const districtObj = FARGONA_DISTRICTS.find(d => d.id === form.district);
 
   function getGeo() {
     if (!navigator.geolocation) { toast.error(t("submit.geo_err")); return; }
@@ -88,8 +87,8 @@ export default function Submit() {
       const image_urls = images.length > 0 ? await uploadAll() : [];
       const map_link = coords ? `https://www.google.com/maps?q=${coords.lat},${coords.lon}` : null;
 
-      const dName = districtObj?.name || form.district;
-      const fullLocation = [dName, form.mahalla, form.address].filter(Boolean).join(", ");
+      const dName = FARGONA_TUMAN_NAME;
+      const fullLocation = [`${form.mahalla} MFY`, form.address, dName].filter(Boolean).join(", ");
 
       const { data, error } = await supabase.functions.invoke("submit-complaint", {
         body: {
@@ -155,7 +154,7 @@ export default function Submit() {
             </div>
             <p className="text-sm">{result.response}</p>
           </div>
-          <Button onClick={() => { setResult(null); setForm({ citizen_name: "", citizen_phone: "", district: "", mahalla: "", address: "", text: "" }); setImages([]); setCoords(null); }}>
+          <Button onClick={() => { setResult(null); setForm({ citizen_name: "", citizen_phone: "", mahalla: "", address: "", text: "" }); setImages([]); setCoords(null); }}>
             {t("submit.new_one")}
           </Button>
         </div>
@@ -183,33 +182,31 @@ export default function Submit() {
 
         <div className="space-y-1.5">
           <Label>{t("submit.region")}</Label>
-          <Input disabled value={t("regions.fargona")} />
+          <Input disabled value={FARGONA_TUMAN_NAME} />
         </div>
 
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label>{t("submit.district")}</Label>
-            <Select value={form.district} onValueChange={v => { update("district", v); update("mahalla", ""); }}>
-              <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
-              <SelectContent>
-                {FARGONA_DISTRICTS.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>{t("submit.mahalla")}</Label>
-            <Select value={form.mahalla} onValueChange={v => update("mahalla", v)} disabled={!districtObj}>
-              <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
-              <SelectContent>
-                {districtObj?.mahallas.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="space-y-1.5">
+          <Label>{t("submit.mahalla")}</Label>
+          <MahallaCombobox
+            value={form.mahalla}
+            onChange={v => update("mahalla", v)}
+            placeholder={t("submit.mahalla_ph")}
+            searchPlaceholder={t("submit.mahalla_search")}
+            emptyText={t("submit.mahalla_empty")}
+          />
         </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="addr"><MapPin className="inline h-3.5 w-3.5 mr-1" />{t("submit.address")}</Label>
-          <Input id="addr" maxLength={200} required value={form.address} onChange={e => update("address", e.target.value)} />
+          <Input
+            id="addr"
+            maxLength={200}
+            required
+            placeholder={t("submit.address_ph")}
+            value={form.address}
+            onChange={e => update("address", e.target.value)}
+          />
+          <p className="text-[11px] text-muted-foreground pl-1">{t("submit.address_hint")}</p>
         </div>
 
         <div className="rounded-xl bg-secondary/60 p-3 flex items-center justify-between gap-2">

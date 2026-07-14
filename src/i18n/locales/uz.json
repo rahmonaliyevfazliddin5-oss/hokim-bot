@@ -1,6 +1,6 @@
 {
   "brand": "Hokim AI",
-  "tagline": "Farg'ona viloyati hokimligi — AI murojaatlar tizimi",
+  "tagline": "Farg'ona tumani Hokimligi — AI murojaatlar tizimi",
   "nav": {
     "home": "Bosh sahifa",
     "submit": "Murojaat yuborish",
@@ -15,9 +15,9 @@
     "logout": "Chiqish"
   },
   "hero": {
-    "badge": "Farg'ona viloyati hokimligi",
+    "badge": "Farg'ona tumani hokimligi",
     "title": "Fuqarolarning ovozi — tezkor javob",
-    "subtitle": "Hokim AI sun'iy intellekt yordamida murojaatlarni avtomatik tasniflaydi va tegishli xizmatlarga yo'naltiradi. Suhbat orqali hokimlik haqida istalgan savolingizga javob oling.",
+    "subtitle": "Hokim AI sun'iy intellekt yordamida Farg'ona tumani fuqarolarining murojaatlarini avtomatik tasniflaydi va tegishli MFY, tashkilot yoki hokimlikka yo'naltiradi.",
     "cta_submit": "Murojaat qoldirish",
     "cta_track": "Murojaatni kuzatish",
     "cta_chat": "AI bilan suhbat"
@@ -36,7 +36,7 @@
     "placeholder": "Savolingizni yozing...",
     "send": "Yuborish",
     "thinking": "AI oʻylayapti...",
-    "intro": "Salom! Men Hokim AI yordamchisiman. Sizga Farg'ona viloyati hokimligi xizmatlari va murojaat tartibi haqida yordam bera olaman. Nima soʻramoqchisiz?",
+    "intro": "Salom! Men Hokim AI yordamchisiman. Farg'ona tumani hokimligi xizmatlari va murojaat tartibi haqida yordam bera olaman. Nima soʻramoqchisiz?",
     "suggest_1": "Murojaatni qanday yuboraman?",
     "suggest_2": "Hokimlik bo'limlari qaysilar?",
     "suggest_3": "Status kodi qanday tekshiriladi?",
@@ -47,10 +47,15 @@
     "subtitle": "Muammoni batafsil yozing — AI uni avtomatik kategoriyalashtiradi",
     "name": "F.I.Sh.",
     "phone": "Telefon raqam",
-    "region": "Viloyat",
+    "region": "Tuman",
     "district": "Tuman / shahar",
-    "mahalla": "Mahalla",
-    "address": "Manzil (koʻcha, uy)",
+    "mahalla": "Mahalla (MFY)",
+    "mahalla_ph": "MFY tanlang",
+    "mahalla_search": "MFY qidirish...",
+    "mahalla_empty": "MFY topilmadi",
+    "address": "Manzil (ko'cha, uy)",
+    "address_ph": "Masalan: Marg'ilon ko'chasi, 1-uy",
+    "address_hint": "Ko'cha nomini va uy raqamini ketma-ket yozing (ko'chasi, uy)",
     "geo": "Joylashuvni aniqlash",
     "geo_ok": "Joylashuv aniqlandi",
     "geo_err": "Joylashuvni olib bo'lmadi",
@@ -138,6 +143,6 @@
     "yo_l": "Yo'l",
     "boshqa": "Boshqa"
   },
-  "regions": { "fargona": "Farg'ona viloyati" },
-  "footer": "© 2026 Farg'ona viloyati hokimligi — Hokim AI"
+  "regions": { "fargona": "Farg'ona tumani" },
+  "footer": "© 2026 Farg'ona tumani hokimligi — Hokim AI"
 }
