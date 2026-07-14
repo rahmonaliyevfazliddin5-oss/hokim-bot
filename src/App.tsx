@@ -46,6 +46,7 @@ const App = () => (
                   <Route path="/admin/stats" element={<AdminGuard><AdminStats /></AdminGuard>} />
                   <Route path="/admin/users" element={<AdminGuard><AdminUsers /></AdminGuard>} />
                   <Route path="/admin/logs" element={<AdminGuard><AdminLogs /></AdminGuard>} />
+                  <Route path="/admin/mahalla-passwords" element={<AdminGuard><AdminMahallaPasswords /></AdminGuard>} />
                   <Route path="/mahalla" element={<Navigate to="/mahalla/dashboard" replace />} />
                   <Route path="/mahalla/login" element={<MahallaLogin />} />
                   <Route path="/mahalla/dashboard" element={<MahallaGuard><MahallaDashboard /></MahallaGuard>} />
