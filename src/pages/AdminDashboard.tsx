@@ -30,7 +30,8 @@ export default function AdminDashboard() {
   const [open, setOpen] = useState<any | null>(null);
   const [newStatus, setNewStatus] = useState("");
   const [notes, setNotes] = useState("");
-  const [fbStats, setFbStats] = useState<{ correct: number; incorrect: number; total: number; accuracy: number | null } | null>(null);
+  const [fbStats, setFbStats] = useState<{ correct: number; incorrect: number; total: number; accuracy: number | null; by_complaint?: Record<string, { verdict: string | null; comment: string; created_at: string }> } | null>(null);
+  const [escalating, setEscalating] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -47,6 +48,17 @@ export default function AdminDashboard() {
       const s = await adminCall<any>("routing_feedback_stats");
       setFbStats(s);
     } catch { /* ignore */ }
+  }
+  async function runEscalation() {
+    setEscalating(true);
+    try {
+      const r = await adminCall<{ escalated: number }>("escalate_overdue");
+      toast.success(r.escalated > 0 ? `${r.escalated} ta murojaat eskalatsiya qilindi` : "Muddati o'tgan murojaatlar topilmadi");
+      if (r.escalated > 0) load();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+    setEscalating(false);
   }
   useEffect(() => { load(); loadFeedback(); }, []);
 
