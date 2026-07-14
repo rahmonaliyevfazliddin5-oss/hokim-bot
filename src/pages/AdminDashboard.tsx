@@ -207,6 +207,28 @@ tr:nth-child(even) td{background:#fafafa}
         ))}
       </div>
 
+      {fbStats && fbStats.total > 0 && (
+        <div className="glass rounded-2xl p-4 mb-4 flex flex-wrap items-center gap-4">
+          <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">AI yo'naltirish bahosi</div>
+          <div className="flex items-center gap-1.5 text-sm">
+            <ThumbsUp className="h-4 w-4 text-success" />
+            <span className="font-bold">{fbStats.correct}</span>
+            <span className="text-muted-foreground text-xs">to'g'ri</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-sm">
+            <ThumbsDown className="h-4 w-4 text-destructive" />
+            <span className="font-bold">{fbStats.incorrect}</span>
+            <span className="text-muted-foreground text-xs">noto'g'ri</span>
+          </div>
+          <div className="text-sm">
+            <span className="text-muted-foreground text-xs">Aniqlik: </span>
+            <span className="font-bold text-primary">{fbStats.accuracy != null ? Math.round(fbStats.accuracy * 100) + "%" : "—"}</span>
+          </div>
+          <div className="text-xs text-muted-foreground ml-auto">Jami: {fbStats.total}</div>
+        </div>
+      )}
+
+
       <div className="glass rounded-2xl p-4 md:p-5 mb-4 space-y-3">
         <div className="flex flex-wrap gap-2 items-center">
           <Input
