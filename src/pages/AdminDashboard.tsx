@@ -13,6 +13,8 @@ import { toast } from "sonner";
 
 const STATUSES = ["qabul_qilindi", "ai_tahlil", "mahallaga_yuborildi", "hokimiyatga_yuborildi", "korib_chiqilmoqda", "jarayonda", "hal_qilindi", "rad_etildi"];
 const CATS = ["gaz", "elektr", "suv", "chiqindi", "yo_l", "boshqa"];
+const SEVERITIES = ["oddiy", "orta", "yuqori"];
+const ROUTINGS = ["mahalla", "hokimiyat"];
 
 export default function AdminDashboard() {
   const { t, lang } = useI18n();
@@ -21,6 +23,10 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState("");
   const [fStatus, setFStatus] = useState("all");
   const [fCat, setFCat] = useState("all");
+  const [fSev, setFSev] = useState("all");
+  const [fRoute, setFRoute] = useState("all");
+  const [fMahalla, setFMahalla] = useState("all");
+  const [fOrg, setFOrg] = useState("all");
   const [open, setOpen] = useState<any | null>(null);
   const [newStatus, setNewStatus] = useState("");
   const [notes, setNotes] = useState("");
@@ -47,12 +53,30 @@ export default function AdminDashboard() {
 
   const itemCats = (i: any): string[] => (i.categories?.length ? i.categories : [i.category]);
 
+  const mahallaOptions = Array.from(new Set(items.map(i => i.mahalla).filter(Boolean))).sort();
+  const orgOptions = Array.from(new Set(items.map(i => i.responsible_org).filter(Boolean))).sort();
+
   const filtered = items.filter(i => {
     if (fStatus !== "all" && i.status !== fStatus) return false;
     if (fCat !== "all" && !itemCats(i).includes(fCat)) return false;
-    if (search && !(`${i.tracking_code} ${i.citizen_name} ${i.text} ${i.district || ""} ${i.mahalla || ""}`).toLowerCase().includes(search.toLowerCase())) return false;
+    if (fSev !== "all" && i.severity !== fSev) return false;
+    if (fRoute !== "all" && i.routing_target !== fRoute) return false;
+    if (fMahalla !== "all" && i.mahalla !== fMahalla) return false;
+    if (fOrg !== "all" && i.responsible_org !== fOrg) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const hay = `${i.tracking_code} ${i.citizen_name} ${i.citizen_phone || ""} ${i.text} ${i.district || ""} ${i.mahalla || ""} ${i.responsible_org || ""} ${i.location || ""}`.toLowerCase();
+      // Support space-separated multi-term AND search
+      const terms = q.split(/\s+/).filter(Boolean);
+      if (!terms.every(term => hay.includes(term))) return false;
+    }
     return true;
   });
+
+  const activeFilters = [fStatus, fCat, fSev, fRoute, fMahalla, fOrg].filter(v => v !== "all").length + (search ? 1 : 0);
+  function resetFilters() {
+    setSearch(""); setFStatus("all"); setFCat("all"); setFSev("all"); setFRoute("all"); setFMahalla("all"); setFOrg("all");
+  }
 
   function openItem(it: any) {
     setOpen(it); setNewStatus(it.status); setNotes(it.admin_notes || "");
@@ -97,22 +121,31 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      <div className="glass rounded-2xl p-4 md:p-5 mb-4 flex flex-wrap gap-3">
-        <Input placeholder={t("admin.search")} value={search} onChange={e => setSearch(e.target.value)} className="flex-1 min-w-[200px]" />
-        <Select value={fStatus} onValueChange={setFStatus}>
-          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("admin.all")}</SelectItem>
-            {STATUSES.map(s => <SelectItem key={s} value={s}>{t(`status.${s}`)}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={fCat} onValueChange={setFCat}>
-          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("admin.all")}</SelectItem>
-            {CATS.map(c => <SelectItem key={c} value={c}>{t(`category.${c}`)}</SelectItem>)}
-          </SelectContent>
-        </Select>
+      <div className="glass rounded-2xl p-4 md:p-5 mb-4 space-y-3">
+        <div className="flex flex-wrap gap-2 items-center">
+          <Input
+            placeholder={`${t("admin.search")} (kod, ism, tel, matn, manzil...)`}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="flex-1 min-w-[240px]"
+          />
+          <div className="text-xs text-muted-foreground whitespace-nowrap">
+            <span className="font-semibold text-foreground">{filtered.length}</span> / {items.length}
+          </div>
+          {activeFilters > 0 && (
+            <Button size="sm" variant="outline" onClick={resetFilters} className="text-xs">
+              Filtrlarni tozalash ({activeFilters})
+            </Button>
+          )}
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+          <FilterSelect label="Holat" value={fStatus} setValue={setFStatus} options={STATUSES.map(s => ({ v: s, l: t(`status.${s}`) }))} />
+          <FilterSelect label="Kategoriya" value={fCat} setValue={setFCat} options={CATS.map(c => ({ v: c, l: t(`category.${c}`) }))} />
+          <FilterSelect label="Og'irlik" value={fSev} setValue={setFSev} options={SEVERITIES.map(s => ({ v: s, l: s === "orta" ? "O'rta" : s.charAt(0).toUpperCase() + s.slice(1) }))} />
+          <FilterSelect label="Yo'nalish" value={fRoute} setValue={setFRoute} options={ROUTINGS.map(r => ({ v: r, l: r === "hokimiyat" ? "Hokimiyat" : "MFY" }))} />
+          <FilterSelect label="MFY" value={fMahalla} setValue={setFMahalla} options={mahallaOptions.map(m => ({ v: m, l: m }))} />
+          <FilterSelect label="Mas'ul tashkilot" value={fOrg} setValue={setFOrg} options={orgOptions.map(o => ({ v: o, l: o }))} />
+        </div>
       </div>
 
       <div className="glass rounded-2xl overflow-hidden">
@@ -148,6 +181,20 @@ export default function AdminDashboard() {
                       {itemCats(it).map(c => (
                         <span key={c} className="rounded-md bg-accent/15 text-accent px-2 py-0.5 text-[10px] font-semibold">{t(`category.${c}`)}</span>
                       ))}
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {it.severity && (
+                        <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${
+                          it.severity === "yuqori" ? "bg-destructive/15 text-destructive"
+                          : it.severity === "orta" ? "bg-warning/15 text-warning-foreground"
+                          : "bg-muted text-muted-foreground"
+                        }`}>{it.severity === "orta" ? "o'rta" : it.severity}</span>
+                      )}
+                      {it.routing_target && (
+                        <span className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-primary/10 text-primary">
+                          {it.routing_target === "hokimiyat" ? "→ HOK" : "→ MFY"}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3"><StatusBadge status={it.status} /></td>
@@ -227,6 +274,21 @@ export default function AdminDashboard() {
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function FilterSelect({ label, value, setValue, options }: { label: string; value: string; setValue: (v: string) => void; options: { v: string; l: string }[] }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 font-semibold">{label}</div>
+      <Select value={value} onValueChange={setValue}>
+        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Barchasi</SelectItem>
+          {options.map(o => <SelectItem key={o.v} value={o.v} className="text-xs">{o.l}</SelectItem>)}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

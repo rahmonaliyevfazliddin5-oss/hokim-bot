@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
     const { data, error } = await supabase
       .from("complaints")
       .select(
-        "tracking_code, status, category, categories, category_details, text, ai_response, ai_analysis, severity, routing_target, responsible_org, eta_days, admin_notes, location, district, mahalla, map_link, image_urls, created_at, updated_at",
+        "id, tracking_code, status, category, categories, category_details, text, ai_response, ai_analysis, severity, routing_target, responsible_org, eta_days, admin_notes, location, district, mahalla, map_link, image_urls, created_at, updated_at",
       )
       .eq("tracking_code", tracking_code.trim().toUpperCase())
       .maybeSingle();
@@ -52,8 +52,15 @@ Deno.serve(async (req) => {
     if (error) return json({ error: error.message }, 500);
     if (!data) return json({ complaint: null });
 
-    // Sanitized payload: no citizen_name, citizen_phone, latitude, longitude
-    const complaint = { ...data, image_urls: await signImages(data.image_urls) };
+    // Fetch timeline (activity_logs) for this complaint — sanitized: only action/details/created_at
+    const { data: logs } = await supabase
+      .from("activity_logs")
+      .select("action, details, created_at")
+      .eq("complaint_id", data.id)
+      .order("created_at", { ascending: true });
+
+    const { id: _hidden, ...safe } = data as any;
+    const complaint = { ...safe, image_urls: await signImages(data.image_urls), timeline: logs ?? [] };
     return json({ complaint });
   } catch (e) {
     return json({ error: String(e) }, 500);
