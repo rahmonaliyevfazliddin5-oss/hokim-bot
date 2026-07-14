@@ -182,6 +182,20 @@ export default function AdminDashboard() {
                         <span key={c} className="rounded-md bg-accent/15 text-accent px-2 py-0.5 text-[10px] font-semibold">{t(`category.${c}`)}</span>
                       ))}
                     </div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {it.severity && (
+                        <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${
+                          it.severity === "yuqori" ? "bg-destructive/15 text-destructive"
+                          : it.severity === "orta" ? "bg-warning/15 text-warning-foreground"
+                          : "bg-muted text-muted-foreground"
+                        }`}>{it.severity === "orta" ? "o'rta" : it.severity}</span>
+                      )}
+                      {it.routing_target && (
+                        <span className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-primary/10 text-primary">
+                          {it.routing_target === "hokimiyat" ? "→ HOK" : "→ MFY"}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3"><StatusBadge status={it.status} /></td>
                   <td className="px-4 py-3 hidden lg:table-cell text-xs text-muted-foreground">{dateFmt(it.created_at)}</td>
