@@ -49,6 +49,42 @@ export type Database = {
           },
         ]
       }
+      admin_alerts: {
+        Row: {
+          count: number
+          created_at: string
+          details: string | null
+          id: string
+          ip: string | null
+          kind: string
+          mahalla: string | null
+          seen_at: string | null
+          window_minutes: number
+        }
+        Insert: {
+          count?: number
+          created_at?: string
+          details?: string | null
+          id?: string
+          ip?: string | null
+          kind: string
+          mahalla?: string | null
+          seen_at?: string | null
+          window_minutes?: number
+        }
+        Update: {
+          count?: number
+          created_at?: string
+          details?: string | null
+          id?: string
+          ip?: string | null
+          kind?: string
+          mahalla?: string | null
+          seen_at?: string | null
+          window_minutes?: number
+        }
+        Relationships: []
+      }
       complaints: {
         Row: {
           admin_notes: string | null

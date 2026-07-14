@@ -16,6 +16,8 @@ const ADMIN_TTL_SECONDS = 60 * 60 * 8;        // 8 hours
 // Brute-force limits
 const RL_WINDOW_MIN = 15;
 const RL_MAX_FAILURES = 5;
+// Alert when failures reach this many (approaching threshold)
+const RL_ALERT_THRESHOLD = 3;
 
 const enc = new TextEncoder();
 
@@ -130,6 +132,33 @@ async function logAttempt(mahalla: string | null, ip: string, success: boolean) 
   await supabase.from("mahalla_login_attempts").insert({ mahalla, ip, success });
 }
 
+// ---------- admin alerts ----------
+async function raiseAlert(kind: string, mahalla: string | null, ip: string | null, count: number, details: string) {
+  // Dedupe: skip if same kind + mahalla + ip alert exists within the current window
+  const since = new Date(Date.now() - RL_WINDOW_MIN * 60 * 1000).toISOString();
+  let q = supabase.from("admin_alerts").select("id", { count: "exact", head: true })
+    .eq("kind", kind).gte("created_at", since);
+  if (mahalla) q = q.eq("mahalla", mahalla); else q = q.is("mahalla", null);
+  if (ip) q = q.eq("ip", ip); else q = q.is("ip", null);
+  const { count: existing } = await q;
+  if ((existing ?? 0) > 0) return;
+  await supabase.from("admin_alerts").insert({
+    kind, mahalla, ip, count, window_minutes: RL_WINDOW_MIN, details,
+  });
+}
+async function checkAndAlert(mahalla: string, ip: string) {
+  const since = new Date(Date.now() - RL_WINDOW_MIN * 60 * 1000).toISOString();
+  const { count } = await supabase.from("mahalla_login_attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("mahalla", mahalla).eq("ip", ip).eq("success", false).gte("attempted_at", since);
+  const n = count ?? 0;
+  if (n >= RL_MAX_FAILURES) {
+    await raiseAlert("blocked", mahalla, ip, n, `${mahalla} / ${ip}: ${n} xato — bloklandi`);
+  } else if (n >= RL_ALERT_THRESHOLD) {
+    await raiseAlert("approaching_block", mahalla, ip, n, `${mahalla} / ${ip}: ${n}/${RL_MAX_FAILURES} xato urinish`);
+  }
+}
+
 // ---------- session (refresh token) ----------
 async function createSession(mahalla: string, ip: string, ua: string): Promise<string> {
   const raw = randomToken(32);
@@ -223,6 +252,7 @@ Deno.serve(async (req) => {
       }
       if (await isRateLimited(mahalla, ip)) {
         await audit("mahalla_login_blocked", `ip:${ip}`, `mahalla=${mahalla} (rate-limited)`);
+        await raiseAlert("rate_limited_429", mahalla, ip, RL_MAX_FAILURES, `${mahalla} / ${ip}: 429 rate-limited`);
         return json({ error: "too_many_attempts", retry_after_minutes: RL_WINDOW_MIN }, 429);
       }
       const ok = await verifyMahallaPassword(mahalla, password);
@@ -230,6 +260,7 @@ Deno.serve(async (req) => {
       if (!ok) {
         await new Promise((r) => setTimeout(r, 400));
         await audit("mahalla_login_failed", `ip:${ip}`, `mahalla=${mahalla}`);
+        await checkAndAlert(mahalla, ip);
         return json({ error: "invalid_credentials" }, 401);
       }
       const refresh = await createSession(mahalla, ip, ua);
@@ -513,6 +544,61 @@ Deno.serve(async (req) => {
         .update({ revoked_at: new Date().toISOString() }).is("revoked_at", null);
       await audit("mahalla_password_bulk_reset", "admin", `reset=${ok} failed=${failed.length}`);
       return json({ ok: true, reset: ok, failed });
+    }
+
+
+    // ---- Bulk revoke sessions by filters (mahalla/ip/date range) ----
+    if (action === "admin_bulk_revoke_sessions") {
+      const { mahalla, ip: ipFilter, from, to, session_ids } = params as {
+        mahalla?: string; ip?: string; from?: string; to?: string; session_ids?: string[];
+      };
+      let q = supabase.from("mahalla_sessions").update({ revoked_at: new Date().toISOString() })
+        .is("revoked_at", null)
+        .gt("expires_at", new Date().toISOString());
+      let scope = "";
+      if (Array.isArray(session_ids) && session_ids.length) {
+        q = q.in("id", session_ids.slice(0, 500));
+        scope = `ids=${session_ids.length}`;
+      } else {
+        if (typeof mahalla === "string" && mahalla) { q = q.eq("mahalla", mahalla); scope += ` mahalla=${mahalla}`; }
+        if (typeof ipFilter === "string" && ipFilter) { q = q.eq("ip", ipFilter); scope += ` ip=${ipFilter}`; }
+        if (typeof from === "string" && from) { q = q.gte("created_at", from); scope += ` from=${from}`; }
+        if (typeof to === "string" && to) { q = q.lte("created_at", to); scope += ` to=${to}`; }
+        if (!scope) return json({ error: "no_filter" }, 400);
+      }
+      const { data, error } = await q.select("id");
+      if (error) return json({ error: error.message }, 500);
+      const n = data?.length ?? 0;
+      await audit("mahalla_session_bulk_revoked", "admin", `revoked=${n}${scope}`);
+      return json({ ok: true, revoked: n });
+    }
+
+    // ---- Admin alerts ----
+    if (action === "admin_alerts_list") {
+      const { unseen_only, limit } = params as { unseen_only?: boolean; limit?: number };
+      let q = supabase.from("admin_alerts").select("*")
+        .order("created_at", { ascending: false }).limit(Math.min(limit ?? 100, 500));
+      if (unseen_only) q = q.is("seen_at", null);
+      const { data, error } = await q;
+      if (error) return json({ error: error.message }, 500);
+      const { count: unseen } = await supabase.from("admin_alerts")
+        .select("id", { count: "exact", head: true }).is("seen_at", null);
+      return json({ alerts: data ?? [], unseen: unseen ?? 0 });
+    }
+
+    if (action === "admin_alerts_mark_seen") {
+      const { ids, all } = params as { ids?: string[]; all?: boolean };
+      let q = supabase.from("admin_alerts").update({ seen_at: new Date().toISOString() }).is("seen_at", null);
+      if (all) {
+        // no additional filter
+      } else if (Array.isArray(ids) && ids.length) {
+        q = q.in("id", ids.slice(0, 500));
+      } else {
+        return json({ error: "no_target" }, 400);
+      }
+      const { error } = await q;
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
     }
 
     return json({ error: "unknown_action" }, 400);
