@@ -66,3 +66,31 @@ export function autoResponseMulti(cats: CategoryDetail[]): string {
   const labels = cats.map((c) => RESP_MAP[c.category].replace(" yo'naltiriladi.", ""));
   return `Murojaatingiz quyidagi bo'limlarga yo'naltirildi: ${labels.join(", ")}.`;
 }
+
+// Escalation routing
+export type EscalationLevel = "mahalla" | "mahalla_org" | "mahalla_org_hokimiyat";
+
+const ORG_CATS: Category[] = ["gaz", "elektr", "suv", "yo_l"];
+const HOKIMIYAT_KEYWORDS = [
+  "qurilish", "қурилиш", "строительств",
+  "loyiha", "лойиҳа", "проект",
+  "infratuzilma", "инфратузилма", "инфраструктур",
+  "hokim", "ҳоким", "хоким",
+  "byudjet", "бюджет",
+  "yangi bino", "yangi maktab", "yangi shifoxona",
+  "kapital", "капитал",
+];
+
+export function computeEscalation(text: string, cats: CategoryDetail[]): EscalationLevel {
+  const lower = text.toLowerCase();
+  if (HOKIMIYAT_KEYWORDS.some((k) => lower.includes(k))) return "mahalla_org_hokimiyat";
+  if (cats.some((c) => ORG_CATS.includes(c.category))) return "mahalla_org";
+  return "mahalla";
+}
+
+export function escalationLabel(l: EscalationLevel): string {
+  if (l === "mahalla") return "Mahalla darajasi";
+  if (l === "mahalla_org") return "Mahalla + tashkilot";
+  return "Mahalla + tashkilot + Hokimiyat";
+}
+
