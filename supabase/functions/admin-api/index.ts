@@ -349,9 +349,10 @@ Deno.serve(async (req) => {
         return json({ error: "invalid_input" }, 400);
       }
       if (await isRateLimited(mahalla, ip)) {
+        const cfg = await getAlertConfig();
         await audit("mahalla_login_blocked", `ip:${ip}`, `mahalla=${mahalla} (rate-limited)`);
-        await raiseAlert("rate_limited_429", mahalla, ip, RL_MAX_FAILURES, `${mahalla} / ${ip}: 429 rate-limited`);
-        return json({ error: "too_many_attempts", retry_after_minutes: RL_WINDOW_MIN }, 429);
+        await raiseAlert("rate_limited_429", mahalla, ip, cfg.block_threshold, `${mahalla} / ${ip}: 429 rate-limited`);
+        return json({ error: "too_many_attempts", retry_after_minutes: cfg.window_minutes }, 429);
       }
       const ok = await verifyMahallaPassword(mahalla, password);
       await logAttempt(mahalla, ip, ok);
