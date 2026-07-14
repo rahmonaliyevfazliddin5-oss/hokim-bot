@@ -127,12 +127,98 @@ export type Database = {
         }
         Relationships: []
       }
+      mahalla_credentials: {
+        Row: {
+          mahalla: string
+          password_hash: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          mahalla: string
+          password_hash: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          mahalla?: string
+          password_hash?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      mahalla_login_attempts: {
+        Row: {
+          attempted_at: string
+          id: string
+          ip: string | null
+          mahalla: string | null
+          success: boolean
+        }
+        Insert: {
+          attempted_at?: string
+          id?: string
+          ip?: string | null
+          mahalla?: string | null
+          success: boolean
+        }
+        Update: {
+          attempted_at?: string
+          id?: string
+          ip?: string | null
+          mahalla?: string | null
+          success?: boolean
+        }
+        Relationships: []
+      }
+      mahalla_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          ip: string | null
+          mahalla: string
+          refresh_hash: string
+          revoked_at: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          ip?: string | null
+          mahalla: string
+          refresh_hash: string
+          revoked_at?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ip?: string | null
+          mahalla?: string
+          refresh_hash?: string
+          revoked_at?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      mahalla_slug: { Args: { _name: string }; Returns: string }
+      set_mahalla_password: {
+        Args: { _actor?: string; _mahalla: string; _password: string }
+        Returns: undefined
+      }
+      verify_mahalla_password: {
+        Args: { _mahalla: string; _password: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

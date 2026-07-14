@@ -1,9 +1,15 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { getMahallaToken, getMahallaName, setMahallaSession, mahallaLogin } from "@/lib/mahallaApi";
+import { getMahallaToken, getMahallaName, mahallaLogin, mahallaLogout } from "@/lib/mahallaApi";
+
+export interface LoginResult {
+  ok: boolean;
+  error?: string;
+  retryAfter?: number;
+}
 
 interface MahallaCtx {
   mahalla: string | null;
-  login: (m: string, p: string) => Promise<boolean>;
+  login: (m: string, p: string) => Promise<LoginResult>;
   logout: () => void;
 }
 
@@ -16,13 +22,13 @@ export function MahallaProvider({ children }: { children: ReactNode }) {
     if (getMahallaToken()) setMahalla(getMahallaName());
   }, []);
 
-  const login = async (m: string, p: string) => {
-    const ok = await mahallaLogin(m, p);
-    if (ok) setMahalla(m);
-    return ok;
+  const login = async (m: string, p: string): Promise<LoginResult> => {
+    const res = await mahallaLogin(m, p);
+    if (res.ok) setMahalla(m);
+    return res;
   };
   const logout = () => {
-    setMahallaSession(null, null);
+    mahallaLogout();
     setMahalla(null);
   };
 
