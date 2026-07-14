@@ -327,19 +327,36 @@ Deno.serve(async (req) => {
     const ip = clientIp(req);
     const ua = req.headers.get("user-agent") ?? "";
 
-    // ============ Public: super-admin login ============
+    // ============ Public: super-admin / role-based admin login ============
     if (action === "login") {
       const { username, password } = params;
-      const ok =
-        typeof username === "string" && typeof password === "string" &&
-        username === ADMIN_USERNAME && password === ADMIN_PASSWORD;
-      if (!ok) {
-        await new Promise((r) => setTimeout(r, 400));
-        await audit("admin_login_failed", `ip:${ip}`, `username=${String(username).slice(0, 40)}`);
-        return json({ error: "invalid_credentials" }, 401);
+      if (typeof username !== "string" || typeof password !== "string") {
+        return json({ error: "invalid_input" }, 400);
       }
-      await audit("admin_login_success", "admin", `ip=${ip}`);
-      return json({ token: await makeToken({ sub: "admin" }, ADMIN_TTL_SECONDS) });
+      // 1) Env-based superadmin (built-in)
+      if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+        await audit("admin_login_success", "admin", `ip=${ip} role=superadmin`);
+        return json({
+          token: await makeToken({ sub: "admin", role: "superadmin", username }, ADMIN_TTL_SECONDS),
+          role: "superadmin",
+          username,
+        });
+      }
+      // 2) admin_users table (multi-role)
+      const { data: verified } = await supabase.rpc("verify_admin_user_password", {
+        _username: username, _password: password,
+      });
+      const v = Array.isArray(verified) ? verified[0] : verified;
+      if (v?.ok && v?.active) {
+        await audit("admin_login_success", `admin:${username}`, `ip=${ip} role=${v.role}`);
+        return json({
+          token: await makeToken({ sub: "admin", role: v.role, username }, ADMIN_TTL_SECONDS),
+          role: v.role, username, full_name: v.full_name ?? null,
+        });
+      }
+      await new Promise((r) => setTimeout(r, 400));
+      await audit("admin_login_failed", `ip:${ip}`, `username=${String(username).slice(0, 40)}`);
+      return json({ error: "invalid_credentials" }, 401);
     }
 
     // ============ Public: mahalla login (hashed + rate-limited) ============
