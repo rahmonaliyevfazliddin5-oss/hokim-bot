@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { FileText, Clock, CheckCircle2, XCircle, Inbox, Eye, MapPin, ExternalLink, Sparkles, Download, FileDown, ThumbsUp, ThumbsDown, AlertTriangle } from "lucide-react";
+import { FileText, Clock, CheckCircle2, XCircle, Inbox, Eye, MapPin, ExternalLink, Sparkles, Download, FileDown, ThumbsUp, ThumbsDown, AlertTriangle, TrendingUp, Timer, ShieldAlert } from "lucide-react";
 import { useI18n } from "@/i18n/I18nProvider";
 import { adminCall } from "@/lib/adminApi";
+import { useAdmin } from "@/contexts/AdminContext";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend, Cell } from "recharts";
 
 const STATUSES = ["qabul_qilindi", "ai_tahlil", "mahallaga_yuborildi", "hokimiyatga_yuborildi", "korib_chiqilmoqda", "jarayonda", "hal_qilindi", "rad_etildi"];
 const CATS = ["gaz", "elektr", "suv", "chiqindi", "yo_l", "boshqa"];
