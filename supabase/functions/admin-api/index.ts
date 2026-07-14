@@ -681,10 +681,72 @@ Deno.serve(async (req) => {
       if (unseen_only) q = q.is("seen_at", null);
       const { data, error } = await q;
       if (error) return json({ error: error.message }, 500);
+      const ids = (data ?? []).map((a: any) => a.id);
+      let deliveries: any[] = [];
+      if (ids.length) {
+        const { data: d } = await supabase.from("admin_alert_deliveries")
+          .select("*").in("alert_id", ids).order("created_at", { ascending: true });
+        deliveries = d ?? [];
+      }
       const { count: unseen } = await supabase.from("admin_alerts")
         .select("id", { count: "exact", head: true }).is("seen_at", null);
-      return json({ alerts: data ?? [], unseen: unseen ?? 0 });
+      return json({ alerts: data ?? [], deliveries, unseen: unseen ?? 0 });
     }
+
+    if (action === "admin_alert_deliveries_list") {
+      const { alert_id } = params as { alert_id?: string };
+      if (!alert_id) return json({ error: "alert_id_required" }, 400);
+      const { data, error } = await supabase.from("admin_alert_deliveries")
+        .select("*").eq("alert_id", alert_id).order("created_at", { ascending: true });
+      if (error) return json({ error: error.message }, 500);
+      return json({ deliveries: data ?? [] });
+    }
+
+    // ---- Alert config ----
+    if (action === "admin_alert_config_get") {
+      const cfg = await getAlertConfig(true);
+      const resendLinked = !!Deno.env.get("RESEND_API_KEY");
+      return json({ config: cfg, resend_linked: resendLinked });
+    }
+    if (action === "admin_alert_config_set") {
+      const { approaching_threshold, block_threshold, window_minutes,
+              email_enabled, email_provider, email_from, email_recipients } = params as Record<string, unknown>;
+      const at = Math.max(1, Math.min(50, Number(approaching_threshold) || 3));
+      const bt = Math.max(at, Math.min(100, Number(block_threshold) || 5));
+      const wm = Math.max(1, Math.min(1440, Number(window_minutes) || 15));
+      const rec = Array.isArray(email_recipients)
+        ? (email_recipients as unknown[]).map(String).map((s) => s.trim())
+            .filter((s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)).slice(0, 20)
+        : [];
+      const { error } = await supabase.from("admin_alert_config").upsert({
+        id: 1,
+        approaching_threshold: at,
+        block_threshold: bt,
+        window_minutes: wm,
+        email_enabled: !!email_enabled,
+        email_provider: typeof email_provider === "string" ? email_provider : "resend",
+        email_from: typeof email_from === "string" && email_from ? email_from : null,
+        email_recipients: rec,
+        updated_at: new Date().toISOString(),
+        updated_by: "admin",
+      });
+      if (error) return json({ error: error.message }, 500);
+      _cfgCache = null;
+      await audit("admin_alert_config_updated", "admin",
+        `at=${at} bt=${bt} wm=${wm} email=${!!email_enabled} rec=${rec.length}`);
+      return json({ ok: true });
+    }
+    if (action === "admin_alert_test_email") {
+      const { recipient } = params as { recipient?: string };
+      const cfg = await getAlertConfig();
+      const to = (recipient && typeof recipient === "string") ? recipient : cfg.email_recipients[0];
+      if (!to) return json({ error: "no_recipient" }, 400);
+      const r = await sendEmail(to, "[Hokim AI] Sinov bildirishnomasi",
+        `<p>Bu Hokim AI xavfsizlik bildirishnomalari uchun sinov xabari.</p>
+         <p>Vaqt: ${new Date().toISOString()}</p>`);
+      return json({ ok: !r.error, error: r.error ?? null, id: r.id ?? null });
+    }
+
 
     if (action === "admin_alerts_mark_seen") {
       const { ids, all } = params as { ids?: string[]; all?: boolean };
