@@ -121,22 +121,31 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      <div className="glass rounded-2xl p-4 md:p-5 mb-4 flex flex-wrap gap-3">
-        <Input placeholder={t("admin.search")} value={search} onChange={e => setSearch(e.target.value)} className="flex-1 min-w-[200px]" />
-        <Select value={fStatus} onValueChange={setFStatus}>
-          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("admin.all")}</SelectItem>
-            {STATUSES.map(s => <SelectItem key={s} value={s}>{t(`status.${s}`)}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={fCat} onValueChange={setFCat}>
-          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("admin.all")}</SelectItem>
-            {CATS.map(c => <SelectItem key={c} value={c}>{t(`category.${c}`)}</SelectItem>)}
-          </SelectContent>
-        </Select>
+      <div className="glass rounded-2xl p-4 md:p-5 mb-4 space-y-3">
+        <div className="flex flex-wrap gap-2 items-center">
+          <Input
+            placeholder={`${t("admin.search")} (kod, ism, tel, matn, manzil...)`}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="flex-1 min-w-[240px]"
+          />
+          <div className="text-xs text-muted-foreground whitespace-nowrap">
+            <span className="font-semibold text-foreground">{filtered.length}</span> / {items.length}
+          </div>
+          {activeFilters > 0 && (
+            <Button size="sm" variant="outline" onClick={resetFilters} className="text-xs">
+              Filtrlarni tozalash ({activeFilters})
+            </Button>
+          )}
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+          <FilterSelect label="Holat" value={fStatus} setValue={setFStatus} options={STATUSES.map(s => ({ v: s, l: t(`status.${s}`) }))} />
+          <FilterSelect label="Kategoriya" value={fCat} setValue={setFCat} options={CATS.map(c => ({ v: c, l: t(`category.${c}`) }))} />
+          <FilterSelect label="Og'irlik" value={fSev} setValue={setFSev} options={SEVERITIES.map(s => ({ v: s, l: s === "orta" ? "O'rta" : s.charAt(0).toUpperCase() + s.slice(1) }))} />
+          <FilterSelect label="Yo'nalish" value={fRoute} setValue={setFRoute} options={ROUTINGS.map(r => ({ v: r, l: r === "hokimiyat" ? "Hokimiyat" : "MFY" }))} />
+          <FilterSelect label="MFY" value={fMahalla} setValue={setFMahalla} options={mahallaOptions.map(m => ({ v: m, l: m }))} />
+          <FilterSelect label="Mas'ul tashkilot" value={fOrg} setValue={setFOrg} options={orgOptions.map(o => ({ v: o, l: o }))} />
+        </div>
       </div>
 
       <div className="glass rounded-2xl overflow-hidden">
