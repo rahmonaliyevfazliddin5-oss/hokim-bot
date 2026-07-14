@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { FARGONA_TUMAN_NAME } from "@/lib/fargona";
 import { MahallaCombobox } from "@/components/MahallaCombobox";
+import { SEO } from "@/components/SEO";
 
 const schema = z.object({
   citizen_name: z.string().trim().min(2).max(120),
