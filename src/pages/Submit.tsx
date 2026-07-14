@@ -62,14 +62,25 @@ export default function Submit() {
   }
 
   async function uploadAll(): Promise<string[]> {
+    const { retryWithBackoff } = await import("@/lib/retry");
     const out: string[] = [];
     for (const img of images) {
       const ext = img.file.name.split(".").pop() || "jpg";
       const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from("complaint-images").upload(path, img.file, {
-        contentType: img.file.type, upsert: false,
-      });
-      if (error) throw error;
+      await retryWithBackoff(
+        async () => {
+          const { error } = await supabase.storage.from("complaint-images").upload(path, img.file, {
+            contentType: img.file.type, upsert: false,
+          });
+          if (error) throw error;
+        },
+        {
+          retries: 3,
+          baseMs: 500,
+          onRetry: (err, attempt, delay) =>
+            console.warn(`[upload retry ${attempt}] after ${Math.round(delay)}ms:`, err),
+        },
+      );
       // Bucket is private; store the object path. Signed URLs are generated server-side on read.
       out.push(path);
     }

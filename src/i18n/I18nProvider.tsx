@@ -2,10 +2,11 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import uz from "./locales/uz.json";
 import uz_cyrl from "./locales/uz_cyrl.json";
 import ru from "./locales/ru.json";
+import en from "./locales/en.json";
 
-export type Lang = "uz" | "uz_cyrl" | "ru";
+export type Lang = "uz" | "uz_cyrl" | "ru" | "en";
 
-const dicts: Record<Lang, any> = { uz, uz_cyrl, ru };
+const dicts: Record<Lang, any> = { uz, uz_cyrl, ru, en };
 
 interface I18nCtx {
   lang: Lang;
@@ -20,6 +21,7 @@ function detectInitial(): Lang {
   if (saved && dicts[saved]) return saved;
   const nav = navigator.language?.toLowerCase() || "";
   if (nav.startsWith("ru")) return "ru";
+  if (nav.startsWith("en")) return "en";
   return "uz";
 }
 
@@ -32,7 +34,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     localStorage.setItem("hokim_lang", lang);
-    document.documentElement.lang = lang === "ru" ? "ru" : "uz";
+    document.documentElement.lang = lang === "ru" ? "ru" : lang === "en" ? "en" : "uz";
   }, [lang]);
 
   const setLang = (l: Lang) => setLangState(l);
