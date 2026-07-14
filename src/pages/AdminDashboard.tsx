@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { FileText, Clock, CheckCircle2, XCircle, Inbox, Eye, MapPin, ExternalLink, Sparkles, Download, FileDown, ThumbsUp, ThumbsDown } from "lucide-react";
+import { FileText, Clock, CheckCircle2, XCircle, Inbox, Eye, MapPin, ExternalLink, Sparkles, Download, FileDown, ThumbsUp, ThumbsDown, AlertTriangle } from "lucide-react";
 import { useI18n } from "@/i18n/I18nProvider";
 import { adminCall } from "@/lib/adminApi";
 import { StatusBadge } from "@/components/StatusBadge";
