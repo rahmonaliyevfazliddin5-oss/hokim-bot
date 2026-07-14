@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
       .eq("tracking_code", tracking_code.trim().toUpperCase())
       .maybeSingle();
 
-    if (error) console.error("db_error:", error); return json({ error: "internal_error" }, 500);
+    if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
     if (!data) return json({ complaint: null });
 
     // Fetch timeline (activity_logs) for this complaint — sanitized: only action/details/created_at

@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
     };
 
     const { data, error } = await supabase.from("complaints").insert(row).select("id, tracking_code").single();
-    if (error) console.error("db_error:", error); return json({ error: "internal_error" }, 500);
+    if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
 
     await supabase.from("activity_logs").insert({
       action: "complaint_created",
