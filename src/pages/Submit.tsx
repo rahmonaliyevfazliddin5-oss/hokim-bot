@@ -23,6 +23,14 @@ const schema = z.object({
   text: z.string().trim().min(10, "Kamida 10 ta belgi").max(2000),
 });
 
+type UploadState = {
+  status: "idle" | "uploading" | "retrying" | "done" | "failed";
+  attempt: number;
+  maxAttempts: number;
+  error?: string;
+  cid?: string;
+};
+
 export default function Submit() {
   const { t } = useI18n();
   const [form, setForm] = useState({
@@ -31,6 +39,7 @@ export default function Submit() {
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [images, setImages] = useState<{ file: File; url: string; uploadedUrl?: string }[]>([]);
+  const [uploadStates, setUploadStates] = useState<UploadState[]>([]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ code: string; cats: string[]; response: string; severity: string; routing: string; org: string; etaLabel: string } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -40,12 +49,22 @@ export default function Submit() {
 
   const update = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
 
-  function getGeo() {
-    if (!navigator.geolocation) { toast.error(t("submit.geo_err")); return; }
+  async function getGeo() {
+    const { reportError } = await import("@/lib/errors");
+    if (!navigator.geolocation) {
+      reportError("map_geolocation", new Error("geolocation_unsupported"));
+      return;
+    }
     setGeoLoading(true);
     navigator.geolocation.getCurrentPosition(
       pos => { setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude }); setGeoLoading(false); toast.success(t("submit.geo_ok")); },
-      () => { setGeoLoading(false); toast.error(t("submit.geo_err")); },
+      (err) => {
+        setGeoLoading(false);
+        reportError("map_geolocation", {
+          message: err?.message || "geolocation_failed",
+          code: err?.code,
+        });
+      },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }
@@ -55,34 +74,67 @@ export default function Submit() {
     const arr = Array.from(files).slice(0, 5 - images.length);
     const next = arr.map(f => ({ file: f, url: URL.createObjectURL(f) }));
     setImages(p => [...p, ...next]);
+    setUploadStates(p => [...p, ...next.map<UploadState>(() => ({ status: "idle", attempt: 0, maxAttempts: 4 }))]);
   }
 
   function removeImg(i: number) {
     setImages(p => p.filter((_, idx) => idx !== i));
+    setUploadStates(p => p.filter((_, idx) => idx !== i));
+  }
+
+  function setUploadAt(i: number, patch: Partial<UploadState>) {
+    setUploadStates(prev => prev.map((s, idx) => idx === i ? { ...s, ...patch } : s));
   }
 
   async function uploadAll(): Promise<string[]> {
     const { retryWithBackoff } = await import("@/lib/retry");
+    const { newCorrelationId } = await import("@/lib/errors");
     const out: string[] = [];
-    for (const img of images) {
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i];
+      const cid = newCorrelationId();
+      const maxAttempts = 4;
+      setUploadAt(i, { status: "uploading", attempt: 1, maxAttempts, cid, error: undefined });
       const ext = img.file.name.split(".").pop() || "jpg";
       const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      await retryWithBackoff(
-        async () => {
-          const { error } = await supabase.storage.from("complaint-images").upload(path, img.file, {
-            contentType: img.file.type, upsert: false,
-          });
-          if (error) throw error;
-        },
-        {
-          retries: 3,
-          baseMs: 500,
-          onRetry: (err, attempt, delay) =>
-            console.warn(`[upload retry ${attempt}] after ${Math.round(delay)}ms:`, err),
-        },
-      );
-      // Bucket is private; store the object path. Signed URLs are generated server-side on read.
-      out.push(path);
+      try {
+        await retryWithBackoff(
+          async (attempt) => {
+            setUploadAt(i, {
+              status: attempt === 0 ? "uploading" : "retrying",
+              attempt: attempt + 1,
+            });
+            const { error } = await supabase.storage.from("complaint-images").upload(path, img.file, {
+              contentType: img.file.type, upsert: false,
+            });
+            if (error) throw error;
+          },
+          {
+            retries: maxAttempts - 1,
+            baseMs: 500,
+            onRetry: (err, attempt, delay) => {
+              console.groupCollapsed(`%c[upload_image #${i + 1}] retry ${attempt}/${maxAttempts - 1} cid=${cid}`, "color:#d97706");
+              console.log("delayMs:", Math.round(delay));
+              console.log("raw:", err);
+              console.groupEnd();
+              setUploadAt(i, { status: "retrying", attempt: attempt + 1, error: (err as any)?.message });
+            },
+          },
+        );
+        setUploadAt(i, { status: "done" });
+        out.push(path);
+      } catch (err: any) {
+        const msg = err?.message || "upload_failed";
+        console.groupCollapsed(`%c[upload_image #${i + 1}] failed cid=${cid}`, "color:#dc2626;font-weight:600");
+        console.log("attempts:", maxAttempts);
+        console.log("raw:", err);
+        console.groupEnd();
+        setUploadAt(i, { status: "failed", error: msg });
+        const wrapped: any = new Error(`image_upload_failed: ${msg} (cid=${cid})`);
+        wrapped.status = err?.status;
+        wrapped.cid = cid;
+        throw wrapped;
+      }
     }
     return out;
   }
@@ -293,14 +345,46 @@ export default function Submit() {
           </div>
           {images.length > 0 && (
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-              {images.map((img, i) => (
-                <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-border">
-                  <img src={img.url} alt="" className="w-full h-full object-cover" />
-                  <button type="button" onClick={() => removeImg(i)} aria-label="Rasmni o'chirish" className="absolute top-1 right-1 h-6 w-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
+              {images.map((img, i) => {
+                const st = uploadStates[i];
+                const isBusy = st && (st.status === "uploading" || st.status === "retrying");
+                const isDone = st?.status === "done";
+                const isFailed = st?.status === "failed";
+                return (
+                  <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-border">
+                    <img src={img.url} alt="" className="w-full h-full object-cover" />
+                    {!loading && (
+                      <button type="button" onClick={() => removeImg(i)} aria-label="Rasmni o'chirish" className="absolute top-1 right-1 h-6 w-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {(isBusy || isDone || isFailed) && (
+                      <div
+                        role="status"
+                        aria-live="polite"
+                        className={`absolute inset-x-0 bottom-0 text-[10px] px-1.5 py-1 leading-tight
+                          ${isFailed ? "bg-destructive/85 text-destructive-foreground" : isDone ? "bg-success/85 text-success-foreground" : "bg-black/70 text-white"}`}
+                      >
+                        {isBusy && (
+                          <div className="flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            <span>
+                              {st.status === "retrying" ? "Retry" : "Upload"} {st.attempt}/{st.maxAttempts}
+                            </span>
+                          </div>
+                        )}
+                        {isDone && <span>✓ uploaded</span>}
+                        {isFailed && (
+                          <div className="truncate" title={`${st.error || "failed"} · cid=${st.cid}`}>
+                            ✕ {st.error || "failed"}
+                            {st.cid && <span className="block opacity-80">cid: {st.cid}</span>}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
