@@ -193,6 +193,11 @@ export default function Submit() {
 
   return (
     <div className="max-w-2xl mx-auto">
+      <SEO
+        title="Murojaat yuborish — Hokim AI"
+        description="Farg'ona tumani hokimligiga murojaat yuboring. AI muammoni tahlil qilib, mas'ul tashkilotga yo'naltiradi."
+        path="/submit"
+      />
       <div className="mb-6">
         <h1 className="text-3xl md:text-4xl font-extrabold mb-1">{t("submit.title")}</h1>
         <p className="text-muted-foreground">{t("submit.subtitle")}</p>
