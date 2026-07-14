@@ -31,7 +31,7 @@ export default function Submit() {
   const [geoLoading, setGeoLoading] = useState(false);
   const [images, setImages] = useState<{ file: File; url: string; uploadedUrl?: string }[]>([]);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ code: string; cats: string[]; response: string } | null>(null);
+  const [result, setResult] = useState<{ code: string; cats: string[]; response: string; severity: string; routing: string; org: string; etaLabel: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
   const cameraInput = useRef<HTMLInputElement>(null);
