@@ -79,24 +79,19 @@ export default function Track() {
     }
   }
 
-  async function sendFeedback(verdict: "correct" | "incorrect") {
+  async function sendFeedback(verdict: "correct" | "incorrect", comment?: string) {
     if (!data) return;
     const { data: r, error } = await supabase.functions.invoke("routing-feedback", {
-      body: { tracking_code: data.tracking_code, verdict },
+      body: { tracking_code: data.tracking_code, verdict, comment: comment ?? "" },
     });
     if (error || r?.error) {
       const msg = (r?.error as string) || error?.message;
-      if (msg === "already_submitted") {
-        toast.info("Siz allaqachon baho bergansiz");
-        setFeedback(verdict);
-        localStorage.setItem(FB_KEY(data.tracking_code), verdict);
-      } else {
-        toast.error(msg || "Xatolik");
-      }
+      toast.error(msg || "Xatolik");
       return;
     }
     setFeedback(verdict);
     localStorage.setItem(FB_KEY(data.tracking_code), verdict);
+    if (comment) localStorage.setItem(FB_KEY(data.tracking_code) + "_c", comment);
     toast.success(verdict === "correct" ? "Rahmat! Bahoingiz saqlandi." : "Rahmat, biz tahlilni yaxshilaymiz.");
   }
 
