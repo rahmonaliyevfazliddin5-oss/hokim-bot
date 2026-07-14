@@ -814,3 +814,145 @@ function StatCard({ label, value, tone }: { label: string; value: number; tone?:
     </div>
   );
 }
+
+// ============= Settings Tab =============
+interface AlertConfig {
+  approaching_threshold: number;
+  block_threshold: number;
+  window_minutes: number;
+  email_enabled: boolean;
+  email_provider: string;
+  email_from: string | null;
+  email_recipients: string[];
+}
+
+function SettingsTab({ onSaved }: { onSaved?: () => void }) {
+  const [cfg, setCfg] = useState<AlertConfig | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testTo, setTestTo] = useState("");
+  const [recipientsText, setRecipientsText] = useState("");
+
+  async function load() {
+    setLoading(true);
+    try {
+      const { config } = await adminCall<{ config: AlertConfig }>("admin_alert_config_get", {});
+      setCfg(config);
+      setRecipientsText((config.email_recipients || []).join(", "));
+    } catch (e: any) { toast.error(e.message); }
+    setLoading(false);
+  }
+  useEffect(() => { load(); }, []);
+
+  function update<K extends keyof AlertConfig>(k: K, v: AlertConfig[K]) {
+    setCfg((prev) => prev ? { ...prev, [k]: v } : prev);
+  }
+
+  async function save() {
+    if (!cfg) return;
+    if (cfg.approaching_threshold >= cfg.block_threshold) {
+      toast.error("Yaqinlashish chegarasi bloklashdan kichik bo'lishi kerak");
+      return;
+    }
+    const recipients = recipientsText.split(/[,\n;]+/).map((s) => s.trim()).filter(Boolean);
+    setSaving(true);
+    try {
+      await adminCall("admin_alert_config_set", { ...cfg, email_recipients: recipients });
+      toast.success("Sozlamalar saqlandi");
+      onSaved?.();
+      await load();
+    } catch (e: any) { toast.error(e.message); }
+    setSaving(false);
+  }
+
+  async function sendTest() {
+    if (!testTo || !testTo.includes("@")) { toast.error("To'g'ri email kiriting"); return; }
+    try {
+      const res = await adminCall<{ ok: boolean; error?: string }>("admin_alert_test_email", { to: testTo });
+      if (res.ok) toast.success(`Test email yuborildi: ${testTo}`);
+      else toast.error(`Xato: ${res.error ?? "unknown"}`);
+    } catch (e: any) { toast.error(e.message); }
+  }
+
+  if (loading || !cfg) {
+    return <div className="glass rounded-2xl p-6 text-sm text-muted-foreground">Yuklanmoqda...</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="glass rounded-2xl p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <AlertTriangle className="h-4 w-4 text-warning" />
+          <h3 className="font-semibold">Alert chegaralari</h3>
+        </div>
+        <div className="grid sm:grid-cols-3 gap-4">
+          <label className="text-sm space-y-1 block">
+            <span className="text-muted-foreground">Yaqinlashish chegarasi</span>
+            <Input type="number" min={1} max={20} value={cfg.approaching_threshold}
+                   onChange={(e) => update("approaching_threshold", Math.max(1, +e.target.value || 1))} />
+            <span className="text-[11px] text-muted-foreground">Shundagi xato urinishlarda "chegara yaqin" alert</span>
+          </label>
+          <label className="text-sm space-y-1 block">
+            <span className="text-muted-foreground">Bloklash chegarasi</span>
+            <Input type="number" min={2} max={50} value={cfg.block_threshold}
+                   onChange={(e) => update("block_threshold", Math.max(2, +e.target.value || 2))} />
+            <span className="text-[11px] text-muted-foreground">Shundagi xato urinishlarda IP+MFY bloklanadi</span>
+          </label>
+          <label className="text-sm space-y-1 block">
+            <span className="text-muted-foreground">Oyna (daqiqa)</span>
+            <Input type="number" min={1} max={1440} value={cfg.window_minutes}
+                   onChange={(e) => update("window_minutes", Math.max(1, +e.target.value || 1))} />
+            <span className="text-[11px] text-muted-foreground">Xato urinishlarni sanash oynasi</span>
+          </label>
+        </div>
+      </div>
+
+      <div className="glass rounded-2xl p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Mail className="h-4 w-4 text-primary" />
+          <h3 className="font-semibold">Email yetkazib berish</h3>
+        </div>
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={cfg.email_enabled}
+                   onChange={(e) => update("email_enabled", e.target.checked)} />
+            <span>Alertlarni email orqali yuborish</span>
+          </label>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <label className="text-sm space-y-1 block">
+              <span className="text-muted-foreground">Yuboruvchi (From)</span>
+              <Input placeholder="Hokim AI <alerts@yourdomain.com>"
+                     value={cfg.email_from ?? ""} onChange={(e) => update("email_from", e.target.value || null)} />
+              <span className="text-[11px] text-muted-foreground">
+                Resend'da tasdiqlangan domen. Bo'sh bo'lsa: onboarding@resend.dev (faqat egaga)
+              </span>
+            </label>
+            <label className="text-sm space-y-1 block">
+              <span className="text-muted-foreground">Provider</span>
+              <Input value={cfg.email_provider} onChange={(e) => update("email_provider", e.target.value)} />
+            </label>
+          </div>
+          <label className="text-sm space-y-1 block">
+            <span className="text-muted-foreground">Qabul qiluvchilar (vergul yoki qator bilan ajrating)</span>
+            <textarea value={recipientsText} onChange={(e) => setRecipientsText(e.target.value)}
+                      rows={3} placeholder="admin@fargona.uz, ceo@fargona.uz"
+                      className="w-full text-sm rounded-md border border-border bg-background px-3 py-2" />
+          </label>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={save} disabled={saving}>
+          {saving ? "Saqlanmoqda..." : "Sozlamalarni saqlash"}
+        </Button>
+        <div className="flex-1" />
+        <Input placeholder="test@example.com" value={testTo} onChange={(e) => setTestTo(e.target.value)}
+               className="max-w-[240px]" />
+        <Button variant="outline" onClick={sendTest}>
+          <Send className="h-3.5 w-3.5 mr-1" /> Test email
+        </Button>
+      </div>
+    </div>
+  );
+}
+
