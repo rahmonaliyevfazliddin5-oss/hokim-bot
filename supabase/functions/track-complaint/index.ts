@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
       .eq("tracking_code", tracking_code.trim().toUpperCase())
       .maybeSingle();
 
-    if (error) return json({ error: error.message }, 500);
+    if (error) console.error("db_error:", error); return json({ error: "internal_error" }, 500);
     if (!data) return json({ complaint: null });
 
     // Fetch timeline (activity_logs) for this complaint — sanitized: only action/details/created_at
@@ -63,6 +63,6 @@ Deno.serve(async (req) => {
     const complaint = { ...safe, image_urls: await signImages(data.image_urls), timeline: logs ?? [] };
     return json({ complaint });
   } catch (e) {
-    return json({ error: String(e) }, 500);
+    console.error("unhandled:", e); return json({ error: "internal_error" }, 500);
   }
 });
