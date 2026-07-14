@@ -22,6 +22,15 @@ function ymdUTC(d: Date) {
   return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
+function randSuffix(len = 5): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
+  const bytes = new Uint8Array(len);
+  crypto.getRandomValues(bytes);
+  let out = "";
+  for (let i = 0; i < len; i++) out += alphabet[bytes[i] % alphabet.length];
+  return out;
+}
+
 async function nextTrackingCode(): Promise<string> {
   const now = new Date();
   const ymd = ymdUTC(now);
@@ -32,7 +41,8 @@ async function nextTrackingCode(): Promise<string> {
     .gte("created_at", start)
     .lte("created_at", end);
   const seq = String((count ?? 0) + 1).padStart(4, "0");
-  return `HOK-${ymd}-${seq}`;
+  // Random suffix prevents enumeration of citizen complaints via the public tracking endpoint.
+  return `HOK-${ymd}-${seq}-${randSuffix(5)}`;
 }
 
 const ALLOWED_SEVERITY = new Set(["oddiy", "orta", "yuqori"]);
@@ -49,13 +59,72 @@ Deno.serve(async (req) => {
       !str(p.citizen_phone, 7, 30) ||
       !str(p.text, 10, 2000) ||
       !Array.isArray(p.categories) ||
-      p.categories.length === 0
+      p.categories.length === 0 ||
+      p.categories.length > 10
     ) {
       return json({ error: "invalid_input" }, 400);
     }
 
+    // Optional string fields — capped lengths
+    const optStr = (v: unknown, max: number): string | null =>
+      typeof v === "string" && v.length <= max ? v : null;
+
+    const district = optStr(p.district, 120);
+    const mahalla = optStr(p.mahalla, 200);
+    const location = optStr(p.location, 500);
+
+    // map_link must be a bounded https URL if provided
+    let map_link: string | null = null;
+    if (typeof p.map_link === "string" && p.map_link.length > 0 && p.map_link.length <= 500) {
+      try {
+        const u = new URL(p.map_link);
+        if (u.protocol === "https:") map_link = u.toString();
+      } catch { /* ignore invalid URL */ }
+    }
+
+    // Numeric ranges for coordinates
+    const inRange = (v: unknown, min: number, max: number) =>
+      typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
+    const latitude = inRange(p.latitude, -90, 90) ? (p.latitude as number) : null;
+    const longitude = inRange(p.longitude, -180, 180) ? (p.longitude as number) : null;
+
+    // categories: bounded strings only
+    const categories = p.categories
+      .map((c: unknown) => String(c).slice(0, 60))
+      .filter((c: string) => c.length > 0)
+      .slice(0, 10);
+    if (categories.length === 0) return json({ error: "invalid_input" }, 400);
+
+    // category_details: array, max 20 entries, each stringified to ≤500 chars
+    const category_details = Array.isArray(p.category_details)
+      ? p.category_details.slice(0, 20).map((d: unknown) => {
+          if (typeof d === "string") return d.slice(0, 500);
+          if (d && typeof d === "object") {
+            try { return JSON.parse(JSON.stringify(d)); } catch { return null; }
+          }
+          return null;
+        }).filter((x: unknown) => x !== null)
+      : [];
+
+    // ai_response bounded, ai_analysis must be plain object with bounded serialized size
+    const ai_response = typeof p.ai_response === "string" ? p.ai_response.slice(0, 2000) : null;
+    let ai_analysis: unknown = null;
+    if (p.ai_analysis && typeof p.ai_analysis === "object" && !Array.isArray(p.ai_analysis)) {
+      try {
+        const s = JSON.stringify(p.ai_analysis);
+        if (s.length <= 4000) ai_analysis = p.ai_analysis;
+      } catch { /* ignore */ }
+    }
+
+    const ai_confidence =
+      typeof p.ai_confidence === "number" && Number.isFinite(p.ai_confidence)
+        ? Math.max(0, Math.min(1, p.ai_confidence))
+        : 0;
+
     const image_urls: string[] = Array.isArray(p.image_urls)
-      ? p.image_urls.filter((u: unknown) => typeof u === "string").slice(0, 5)
+      ? p.image_urls
+          .filter((u: unknown) => typeof u === "string" && (u as string).length <= 500)
+          .slice(0, 5)
       : [];
 
     const severity = typeof p.severity === "string" && ALLOWED_SEVERITY.has(p.severity) ? p.severity : "oddiy";
@@ -73,30 +142,30 @@ Deno.serve(async (req) => {
       citizen_name: String(p.citizen_name).trim(),
       citizen_phone: String(p.citizen_phone).trim(),
       region: "fargona",
-      district: typeof p.district === "string" ? p.district : null,
-      mahalla: typeof p.mahalla === "string" ? p.mahalla : null,
-      location: typeof p.location === "string" ? p.location : null,
+      district,
+      mahalla,
+      location,
       text: String(p.text).trim(),
-      category: String(p.categories[0]),
-      categories: p.categories.map((c: unknown) => String(c)),
-      category_details: p.category_details ?? [],
-      ai_confidence: typeof p.ai_confidence === "number" ? p.ai_confidence : 0,
-      ai_response: typeof p.ai_response === "string" ? p.ai_response : null,
-      ai_analysis: typeof p.ai_analysis === "object" ? p.ai_analysis : null,
+      category: categories[0],
+      categories,
+      category_details,
+      ai_confidence,
+      ai_response,
+      ai_analysis,
       severity,
       routing_target,
       responsible_org,
       eta_days,
       status: initial_status,
       tracking_code,
-      latitude: typeof p.latitude === "number" ? p.latitude : null,
-      longitude: typeof p.longitude === "number" ? p.longitude : null,
-      map_link: typeof p.map_link === "string" ? p.map_link : null,
+      latitude,
+      longitude,
+      map_link,
       image_urls,
     };
 
     const { data, error } = await supabase.from("complaints").insert(row).select("id, tracking_code").single();
-    if (error) return json({ error: error.message }, 500);
+    if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
 
     await supabase.from("activity_logs").insert({
       action: "complaint_created",
@@ -115,6 +184,6 @@ Deno.serve(async (req) => {
       status: initial_status,
     });
   } catch (e) {
-    return json({ error: String(e) }, 500);
+    console.error("unhandled:", e); return json({ error: "internal_error" }, 500);
   }
 });

@@ -428,7 +428,7 @@ Deno.serve(async (req) => {
         const { data, error } = await supabase
           .from("complaints").select("*").eq("mahalla", mahalla)
           .order("created_at", { ascending: false }).limit(1000);
-        if (error) return json({ error: error.message }, 500);
+        if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
         const rows = await Promise.all(
           (data ?? []).map(async (r) => ({ ...r, image_urls: await signImages(r.image_urls) })),
         );
@@ -449,7 +449,7 @@ Deno.serve(async (req) => {
         const notes = typeof admin_notes === "string" && admin_notes.length ? admin_notes.slice(0, 2000) : null;
         const { error } = await supabase.from("complaints")
           .update({ status, admin_notes: notes }).eq("id", id);
-        if (error) return json({ error: error.message }, 500);
+        if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
         if (prev.status !== status) {
           await audit("status_changed", `mahalla:${mahalla}`,
             `${prev.tracking_code}: ${prev.status} → ${status}`, id);
@@ -520,7 +520,7 @@ Deno.serve(async (req) => {
     if (action === "list_complaints") {
       const { data, error } = await supabase.from("complaints").select("*")
         .order("created_at", { ascending: false }).limit(1000);
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
       const rows = await Promise.all(
         (data ?? []).map(async (r) => ({ ...r, image_urls: await signImages(r.image_urls) })),
       );
@@ -530,7 +530,7 @@ Deno.serve(async (req) => {
     if (action === "list_logs") {
       const { data, error } = await supabase.from("activity_logs").select("*")
         .order("created_at", { ascending: false }).limit(200);
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
       return json({ logs: data ?? [] });
     }
 
@@ -543,7 +543,7 @@ Deno.serve(async (req) => {
       const { data: prev } = await supabase.from("complaints")
         .select("status, tracking_code, admin_notes").eq("id", id).maybeSingle();
       const { error } = await supabase.from("complaints").update({ status, admin_notes: notes }).eq("id", id);
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
       if (prev && prev.status !== status) {
         await audit("status_changed", "admin",
           `${prev.tracking_code ?? id}: ${prev.status ?? "?"} → ${status}`, id);
@@ -559,7 +559,7 @@ Deno.serve(async (req) => {
     if (action === "admin_list_mahallas") {
       const { data, error } = await supabase.from("mahalla_credentials")
         .select("mahalla, updated_at, updated_by").order("mahalla", { ascending: true });
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
       return json({ mahallas: data ?? [] });
     }
 
@@ -590,7 +590,7 @@ Deno.serve(async (req) => {
         .order("attempted_at", { ascending: false }).limit(Math.min(limit ?? 200, 500));
       if (typeof mahalla === "string" && mahalla) q = q.eq("mahalla", mahalla);
       const { data, error } = await q;
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
       return json({ attempts: data ?? [] });
     }
 
@@ -603,7 +603,7 @@ Deno.serve(async (req) => {
       if (typeof mahalla === "string" && mahalla) q = q.eq("mahalla", mahalla);
       if (active_only) q = q.is("revoked_at", null).gt("expires_at", new Date().toISOString());
       const { data, error } = await q;
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
       return json({ sessions: data ?? [] });
     }
 
@@ -646,7 +646,7 @@ Deno.serve(async (req) => {
         query = query.or(`details.ilike.%${s}%,actor.ilike.%${s}%,action.ilike.%${s}%`);
       }
       const { data, error } = await query;
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
       return json({ logs: data ?? [] });
     }
 
@@ -660,7 +660,7 @@ Deno.serve(async (req) => {
         .gte("attempted_at", since24h)
         .order("attempted_at", { ascending: false })
         .limit(5000);
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
 
       const stats = new Map<string, {
         mahalla: string; total: number; success: number; failed: number;
@@ -734,7 +734,7 @@ Deno.serve(async (req) => {
         if (!scope) return json({ error: "no_filter" }, 400);
       }
       const { data, error } = await q.select("id");
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
       const n = data?.length ?? 0;
       await audit("mahalla_session_bulk_revoked", "admin", `revoked=${n}${scope}`);
       return json({ ok: true, revoked: n });
@@ -747,7 +747,7 @@ Deno.serve(async (req) => {
         .order("created_at", { ascending: false }).limit(Math.min(limit ?? 100, 500));
       if (unseen_only) q = q.is("seen_at", null);
       const { data, error } = await q;
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
       const ids = (data ?? []).map((a: any) => a.id);
       let deliveries: any[] = [];
       if (ids.length) {
@@ -765,7 +765,7 @@ Deno.serve(async (req) => {
       if (!alert_id) return json({ error: "alert_id_required" }, 400);
       const { data, error } = await supabase.from("admin_alert_deliveries")
         .select("*").eq("alert_id", alert_id).order("created_at", { ascending: true });
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
       return json({ deliveries: data ?? [] });
     }
 
@@ -797,7 +797,7 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
         updated_by: "admin",
       });
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
       _cfgCache = null;
       await audit("admin_alert_config_updated", "admin",
         `at=${at} bt=${bt} wm=${wm} email=${!!email_enabled} rec=${rec.length}`);
@@ -826,7 +826,7 @@ Deno.serve(async (req) => {
         return json({ error: "no_target" }, 400);
       }
       const { error } = await q;
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
       return json({ ok: true });
     }
 
@@ -836,7 +836,7 @@ Deno.serve(async (req) => {
         .eq("action", "routing_feedback")
         .order("created_at", { ascending: false })
         .limit(5000);
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
       let correct = 0, incorrect = 0;
       const recent: any[] = [];
       const byComplaint: Record<string, { verdict: string | null; comment: string; created_at: string }> = {};
@@ -883,7 +883,7 @@ Deno.serve(async (req) => {
         query = query.or(`details.ilike.%${s}%,actor.ilike.%${s}%,action.ilike.%${s}%`);
       }
       const { data, error } = await query;
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
       return json({ logs: data ?? [] });
     }
 
@@ -924,7 +924,7 @@ Deno.serve(async (req) => {
         .not("eta_days", "is", null)
         .not("status", "in", "(hal_qilindi,bajarildi,rad_etildi)")
         .limit(2000);
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
 
       const sevOrder = ["oddiy", "orta", "yuqori"];
       const maxIdx = Math.max(0, sevOrder.indexOf(rules.max_severity));
@@ -1015,7 +1015,7 @@ Deno.serve(async (req) => {
         updated_by: actorLabel,
       };
       const { error } = await supabase.from("escalation_rules").upsert(patch);
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
       await audit("escalation_rules_updated", actorLabel,
         `enabled=${patch.enabled} sev@${patch.severity_bump_days}d reroute@${patch.reroute_to_hokimiyat_days}d → ${patch.target_status}, max=${patch.max_severity}`);
       return json({ ok: true, rules: patch });
@@ -1028,7 +1028,7 @@ Deno.serve(async (req) => {
         .from("complaints")
         .select("id, status, severity, routing_target, eta_days, created_at, updated_at")
         .limit(5000);
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
 
       // Escalation counts from activity_logs
       const { data: escLogs } = await supabase.from("activity_logs")
@@ -1104,7 +1104,7 @@ Deno.serve(async (req) => {
       const { data, error } = await supabase.from("admin_users")
         .select("id, username, role, full_name, active, created_at, updated_at, created_by")
         .order("created_at", { ascending: false });
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
       return json({ users: data ?? [] });
     }
     if (action === "admin_users_create") {
@@ -1138,7 +1138,7 @@ Deno.serve(async (req) => {
       if (typeof active === "boolean") patch.active = active;
       if (!Object.keys(patch).length) return json({ error: "nothing_to_update" }, 400);
       const { error } = await supabase.from("admin_users").update(patch).eq("id", id);
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
       await audit("admin_user_updated", actorLabel, `id=${id.slice(0, 8)} ${JSON.stringify(patch)}`);
       return json({ ok: true });
     }
@@ -1147,7 +1147,7 @@ Deno.serve(async (req) => {
       if (typeof id !== "string") return json({ error: "id_required" }, 400);
       const { data: u } = await supabase.from("admin_users").select("username").eq("id", id).maybeSingle();
       const { error } = await supabase.from("admin_users").delete().eq("id", id);
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
       await audit("admin_user_deleted", actorLabel, `username=${u?.username ?? id.slice(0, 8)}`);
       return json({ ok: true });
     }
@@ -1158,13 +1158,13 @@ Deno.serve(async (req) => {
       const { error } = await supabase.rpc("set_admin_user_password", {
         _username: username, _password: new_password, _actor: actorLabel,
       });
-      if (error) return json({ error: error.message }, 500);
+      if (error) { console.error("db_error:", error); return json({ error: "internal_error" }, 500); }
       await audit("admin_user_password_reset", actorLabel, `username=${username}`);
       return json({ ok: true });
     }
 
     return json({ error: "unknown_action" }, 400);
   } catch (e) {
-    return json({ error: String(e) }, 500);
+    console.error("unhandled:", e); return json({ error: "internal_error" }, 500);
   }
 });
