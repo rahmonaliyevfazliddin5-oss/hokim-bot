@@ -88,26 +88,53 @@ export default function Submit() {
 
   async function uploadAll(): Promise<string[]> {
     const { retryWithBackoff } = await import("@/lib/retry");
+    const { newCorrelationId } = await import("@/lib/errors");
     const out: string[] = [];
-    for (const img of images) {
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i];
+      const cid = newCorrelationId();
+      const maxAttempts = 4;
+      setUploadAt(i, { status: "uploading", attempt: 1, maxAttempts, cid, error: undefined });
       const ext = img.file.name.split(".").pop() || "jpg";
       const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      await retryWithBackoff(
-        async () => {
-          const { error } = await supabase.storage.from("complaint-images").upload(path, img.file, {
-            contentType: img.file.type, upsert: false,
-          });
-          if (error) throw error;
-        },
-        {
-          retries: 3,
-          baseMs: 500,
-          onRetry: (err, attempt, delay) =>
-            console.warn(`[upload retry ${attempt}] after ${Math.round(delay)}ms:`, err),
-        },
-      );
-      // Bucket is private; store the object path. Signed URLs are generated server-side on read.
-      out.push(path);
+      try {
+        await retryWithBackoff(
+          async (attempt) => {
+            setUploadAt(i, {
+              status: attempt === 0 ? "uploading" : "retrying",
+              attempt: attempt + 1,
+            });
+            const { error } = await supabase.storage.from("complaint-images").upload(path, img.file, {
+              contentType: img.file.type, upsert: false,
+            });
+            if (error) throw error;
+          },
+          {
+            retries: maxAttempts - 1,
+            baseMs: 500,
+            onRetry: (err, attempt, delay) => {
+              console.groupCollapsed(`%c[upload_image #${i + 1}] retry ${attempt}/${maxAttempts - 1} cid=${cid}`, "color:#d97706");
+              console.log("delayMs:", Math.round(delay));
+              console.log("raw:", err);
+              console.groupEnd();
+              setUploadAt(i, { status: "retrying", attempt: attempt + 1, error: (err as any)?.message });
+            },
+          },
+        );
+        setUploadAt(i, { status: "done" });
+        out.push(path);
+      } catch (err: any) {
+        const msg = err?.message || "upload_failed";
+        console.groupCollapsed(`%c[upload_image #${i + 1}] failed cid=${cid}`, "color:#dc2626;font-weight:600");
+        console.log("attempts:", maxAttempts);
+        console.log("raw:", err);
+        console.groupEnd();
+        setUploadAt(i, { status: "failed", error: msg });
+        const wrapped: any = new Error(`image_upload_failed: ${msg} (cid=${cid})`);
+        wrapped.status = err?.status;
+        wrapped.cid = cid;
+        throw wrapped;
+      }
     }
     return out;
   }
