@@ -62,14 +62,25 @@ export default function Submit() {
   }
 
   async function uploadAll(): Promise<string[]> {
+    const { retryWithBackoff } = await import("@/lib/retry");
     const out: string[] = [];
     for (const img of images) {
       const ext = img.file.name.split(".").pop() || "jpg";
       const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from("complaint-images").upload(path, img.file, {
-        contentType: img.file.type, upsert: false,
-      });
-      if (error) throw error;
+      await retryWithBackoff(
+        async () => {
+          const { error } = await supabase.storage.from("complaint-images").upload(path, img.file, {
+            contentType: img.file.type, upsert: false,
+          });
+          if (error) throw error;
+        },
+        {
+          retries: 3,
+          baseMs: 500,
+          onRetry: (err, attempt, delay) =>
+            console.warn(`[upload retry ${attempt}] after ${Math.round(delay)}ms:`, err),
+        },
+      );
       // Bucket is private; store the object path. Signed URLs are generated server-side on read.
       out.push(path);
     }
@@ -80,15 +91,21 @@ export default function Submit() {
     e.preventDefault();
     const parsed = schema.safeParse(form);
     if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
+    const { reportError } = await import("@/lib/errors");
     setLoading(true);
+    let step = "validate";
     try {
+      step = "ai_classify";
       const ai = analyze(form.text, form.mahalla || null);
+
+      step = "upload_images";
       const image_urls = images.length > 0 ? await uploadAll() : [];
       const map_link = coords ? `https://www.google.com/maps?q=${coords.lat},${coords.lon}` : null;
 
       const dName = FARGONA_TUMAN_NAME;
       const fullLocation = [`${form.mahalla} MFY`, form.address, dName].filter(Boolean).join(", ");
 
+      step = "submit_complaint";
       const { data, error } = await supabase.functions.invoke("submit-complaint", {
         body: {
           citizen_name: form.citizen_name.trim(),
@@ -124,7 +141,7 @@ export default function Submit() {
         etaLabel: ai.eta_label,
       });
     } catch (err: any) {
-      toast.error(err.message);
+      reportError(step, err);
     } finally {
       setLoading(false);
     }

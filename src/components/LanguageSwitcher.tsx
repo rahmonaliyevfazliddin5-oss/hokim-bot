@@ -5,6 +5,7 @@ const opts: { code: Lang; label: string }[] = [
   { code: "uz", label: "UZ" },
   { code: "uz_cyrl", label: "ЎЗ" },
   { code: "ru", label: "RU" },
+  { code: "en", label: "EN" },
 ];
 
 export function LanguageSwitcher() {
