@@ -169,14 +169,34 @@ export default function AdminMahallaSecurity() {
                 const label = a.kind === "approaching_block" ? "Chegara yaqin"
                   : a.kind === "blocked" ? "Bloklandi"
                   : a.kind === "rate_limited_429" ? "429 Rate limit" : a.kind;
+                const alertDels = deliveries.filter((d) => d.alert_id === a.id);
                 return (
                   <div key={a.id} className={`py-2 flex items-start gap-3 ${a.seen_at ? "opacity-60" : ""}`}>
                     <span className={`text-[11px] px-2 py-0.5 rounded-full border ${tone} shrink-0`}>{label}</span>
-                    <div className="flex-1 text-sm">
+                    <div className="flex-1 text-sm min-w-0">
                       <div className="font-medium">{a.details ?? `${a.mahalla ?? "?"} / ${a.ip ?? "?"}`}</div>
                       <div className="text-xs text-muted-foreground">
                         {fmt(a.created_at)} · {a.count} xato / {a.window_minutes} daq.
                       </div>
+                      {alertDels.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {alertDels.map((d) => {
+                            const cls = d.status === "delivered" ? "bg-success/15 text-success border-success/30"
+                              : d.status === "failed" ? "bg-destructive/15 text-destructive border-destructive/30"
+                              : "bg-muted text-muted-foreground border-border";
+                            const tip = d.channel === "email"
+                              ? `${d.recipient ?? ""} · ${d.status}${d.delivered_at ? ` · ${new Date(d.delivered_at).toLocaleTimeString()}` : ""}${d.error ? ` · ${d.error}` : ""}`
+                              : `${d.channel} · ${d.status}`;
+                            return (
+                              <span key={d.id} title={tip}
+                                    className={`text-[10px] px-1.5 py-0.5 rounded-full border ${cls}`}>
+                                {d.channel === "email" ? "✉" : "◉"} {d.channel}: {d.status}
+                                {d.channel === "email" && d.recipient ? ` · ${d.recipient}` : ""}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
