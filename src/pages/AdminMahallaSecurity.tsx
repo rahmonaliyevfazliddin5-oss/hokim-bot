@@ -48,6 +48,16 @@ interface AlertRow {
   seen_at: string | null;
   created_at: string;
 }
+interface DeliveryRow {
+  id: string;
+  alert_id: string;
+  channel: string;
+  recipient: string | null;
+  status: string;
+  error: string | null;
+  delivered_at: string | null;
+  created_at: string;
+}
 
 const AUDIT_ACTIONS = [
   { key: "mahalla_login_success", label: "Login (muvaffaqiyatli)" },
