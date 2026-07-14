@@ -100,13 +100,26 @@ export default function AdminStats() {
         </div>
 
         <div className="glass rounded-2xl p-6">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <h3 className="font-bold">{t("admin.by_mahalla")}</h3>
-            <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full inline-block" style={{ background: "hsl(0 75% 52%)" }} />{t("admin.legend_high")}</span>
-              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full inline-block" style={{ background: "hsl(38 92% 50%)" }} />{t("admin.legend_mid")}</span>
-              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full inline-block" style={{ background: "hsl(152 60% 42%)" }} />{t("admin.legend_none")}</span>
-            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 mb-4 p-3 rounded-xl bg-muted/40 border border-border/60 text-xs">
+            <span className="font-semibold text-foreground mr-1">{t("admin.legend_title") || "Rang belgilari:"}</span>
+            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-background border border-border">
+              <span className="h-3 w-3 rounded-full" style={{ background: "hsl(0 75% 52%)" }} />
+              <span className="font-medium">{t("admin.legend_high")}</span>
+              <span className="text-muted-foreground">— eng ko'p murojaat</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-background border border-border">
+              <span className="h-3 w-3 rounded-full" style={{ background: "hsl(38 92% 50%)" }} />
+              <span className="font-medium">{t("admin.legend_mid")}</span>
+              <span className="text-muted-foreground">— o'rtacha</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-background border border-border">
+              <span className="h-3 w-3 rounded-full" style={{ background: "hsl(152 60% 42%)" }} />
+              <span className="font-medium">{t("admin.legend_none")}</span>
+              <span className="text-muted-foreground">— murojaat yo'q</span>
+            </span>
           </div>
           <div className="max-h-[520px] overflow-y-auto pr-1">
             <ResponsiveContainer width="100%" height={Math.max(260, byMahalla.length * 22)}>
