@@ -345,14 +345,46 @@ export default function Submit() {
           </div>
           {images.length > 0 && (
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-              {images.map((img, i) => (
-                <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-border">
-                  <img src={img.url} alt="" className="w-full h-full object-cover" />
-                  <button type="button" onClick={() => removeImg(i)} aria-label="Rasmni o'chirish" className="absolute top-1 right-1 h-6 w-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
+              {images.map((img, i) => {
+                const st = uploadStates[i];
+                const isBusy = st && (st.status === "uploading" || st.status === "retrying");
+                const isDone = st?.status === "done";
+                const isFailed = st?.status === "failed";
+                return (
+                  <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-border">
+                    <img src={img.url} alt="" className="w-full h-full object-cover" />
+                    {!loading && (
+                      <button type="button" onClick={() => removeImg(i)} aria-label="Rasmni o'chirish" className="absolute top-1 right-1 h-6 w-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {(isBusy || isDone || isFailed) && (
+                      <div
+                        role="status"
+                        aria-live="polite"
+                        className={`absolute inset-x-0 bottom-0 text-[10px] px-1.5 py-1 leading-tight
+                          ${isFailed ? "bg-destructive/85 text-destructive-foreground" : isDone ? "bg-success/85 text-success-foreground" : "bg-black/70 text-white"}`}
+                      >
+                        {isBusy && (
+                          <div className="flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            <span>
+                              {st.status === "retrying" ? "Retry" : "Upload"} {st.attempt}/{st.maxAttempts}
+                            </span>
+                          </div>
+                        )}
+                        {isDone && <span>✓ uploaded</span>}
+                        {isFailed && (
+                          <div className="truncate" title={`${st.error || "failed"} · cid=${st.cid}`}>
+                            ✕ {st.error || "failed"}
+                            {st.cid && <span className="block opacity-80">cid: {st.cid}</span>}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
