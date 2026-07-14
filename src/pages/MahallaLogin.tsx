@@ -47,7 +47,11 @@ export default function MahallaLogin() {
           </div>
           <div className="space-y-1.5">
             <Label>Parol</Label>
-            <Input type="password" value={p} onChange={e => setP(e.target.value)} />
+            <Input type="password" value={p} onChange={e => setP(e.target.value)} placeholder="mahallanomi123" />
+            <p className="text-[11px] text-muted-foreground">
+              Parol = MFY nomi (kichik harflar, bo'sh joysiz) + <span className="font-mono">123</span>.
+              {m && <> Masalan: <span className="font-mono">{m.toLowerCase().replace(/[^a-z0-9а-яёқғҳўʻ']/gi, "")}123</span></>}
+            </p>
           </div>
           <Button type="submit" disabled={busy} className="w-full gradient-accent text-accent-foreground" size="lg">
             <LogIn className="mr-2 h-4 w-4" /> Kirish
