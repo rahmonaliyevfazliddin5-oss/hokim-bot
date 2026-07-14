@@ -11,7 +11,7 @@ import logoAsset from "@/assets/hokim-logo.png.asset.json";
 
 export function AppSidebar() {
   const { t } = useI18n();
-  const { isAdmin, logout } = useAdmin();
+  const { isAdmin, logout, role } = useAdmin();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const { pathname } = useLocation();
