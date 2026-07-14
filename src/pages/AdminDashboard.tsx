@@ -223,6 +223,12 @@ tr:nth-child(even) td{background:#fafafa}
               Filtrlarni tozalash ({activeFilters})
             </Button>
           )}
+          <Button size="sm" variant="outline" onClick={exportCSV} className="text-xs">
+            <Download className="mr-1 h-3.5 w-3.5" /> CSV
+          </Button>
+          <Button size="sm" variant="outline" onClick={exportPDF} className="text-xs">
+            <FileDown className="mr-1 h-3.5 w-3.5" /> PDF
+          </Button>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
           <FilterSelect label="Holat" value={fStatus} setValue={setFStatus} options={STATUSES.map(s => ({ v: s, l: t(`status.${s}`) }))} />
