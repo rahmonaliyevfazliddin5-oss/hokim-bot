@@ -9,6 +9,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusBadge } from "@/components/StatusBadge";
 import { toast } from "sonner";
+import { SEO } from "@/components/SEO";
 
 const CODE_RE = /^HOK-\d{8}-\d{3,5}$/i;
 const FB_KEY = (code: string) => `hokim_fb_${code}`;
