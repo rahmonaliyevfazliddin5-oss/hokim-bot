@@ -265,6 +265,12 @@ function SpeakingAvatar({
         body: JSON.stringify({ text: cleaned, voiceId, lang: langKeyOf(lang) }),
       });
       if (!r.ok) throw new Error(`tts ${r.status}`);
+      const ct = r.headers.get("content-type") || "";
+      if (!ct.startsWith("audio/")) {
+        // Edge function returned a JSON fallback signal (e.g. ElevenLabs auth error) — use browser TTS.
+        startBrowserFallback();
+        return;
+      }
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
