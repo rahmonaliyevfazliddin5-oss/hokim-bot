@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Sparkles, Zap, ShieldCheck, ArrowRight, Search, MessageSquare, Building2, Phone, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n/I18nProvider";
-import logo from "@/assets/hokim-logo.png";
+import logoAsset from "@/assets/hokim-logo.png.asset.json";
 
 export default function Home() {
   const { t } = useI18n();
@@ -23,7 +23,7 @@ export default function Home() {
           backgroundSize: '32px 32px',
         }} />
         <div className="absolute -right-10 -top-10 opacity-20 hidden md:block">
-          <img src={logo} alt="" className="h-72 w-72 object-contain" width={288} height={288} />
+          <img src={logoAsset.url} alt="" className="h-72 w-72 object-contain" width={288} height={288} />
         </div>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="relative max-w-3xl">
           <span className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur px-3 py-1 text-xs font-medium mb-5 border border-white/20">
