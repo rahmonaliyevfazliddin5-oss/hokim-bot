@@ -7,7 +7,7 @@ import {
 import { useI18n } from "@/i18n/I18nProvider";
 import { useAdmin } from "@/contexts/AdminContext";
 import { cn } from "@/lib/utils";
-import logo from "@/assets/hokim-logo.png";
+import logoAsset from "@/assets/hokim-logo.png.asset.json";
 
 export function AppSidebar() {
   const { t } = useI18n();

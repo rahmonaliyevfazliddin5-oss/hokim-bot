@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Sparkles, Zap, ShieldCheck, ArrowRight, Search, MessageSquare, Building2, Phone, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n/I18nProvider";
-import logo from "@/assets/hokim-logo.png";
+import logoAsset from "@/assets/hokim-logo.png.asset.json";
 
 export default function Home() {
   const { t } = useI18n();
