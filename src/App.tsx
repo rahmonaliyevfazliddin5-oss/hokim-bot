@@ -28,27 +28,32 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <I18nProvider>
       <AdminProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route element={<AppLayout />}>
-                <Route path="/" element={<Home />} />
-                <Route path="/submit" element={<Submit />} />
-                <Route path="/track" element={<Track />} />
-                <Route path="/chat" element={<Chat />} />
-                <Route path="/admin/login" element={<AdminLogin />} />
-                <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
-                <Route path="/admin/dashboard" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
-                <Route path="/admin/stats" element={<AdminGuard><AdminStats /></AdminGuard>} />
-                <Route path="/admin/users" element={<AdminGuard><AdminUsers /></AdminGuard>} />
-                <Route path="/admin/logs" element={<AdminGuard><AdminLogs /></AdminGuard>} />
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
+        <MahallaProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route element={<AppLayout />}>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/submit" element={<Submit />} />
+                  <Route path="/track" element={<Track />} />
+                  <Route path="/chat" element={<Chat />} />
+                  <Route path="/admin/login" element={<AdminLogin />} />
+                  <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+                  <Route path="/admin/dashboard" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
+                  <Route path="/admin/stats" element={<AdminGuard><AdminStats /></AdminGuard>} />
+                  <Route path="/admin/users" element={<AdminGuard><AdminUsers /></AdminGuard>} />
+                  <Route path="/admin/logs" element={<AdminGuard><AdminLogs /></AdminGuard>} />
+                  <Route path="/mahalla" element={<Navigate to="/mahalla/dashboard" replace />} />
+                  <Route path="/mahalla/login" element={<MahallaLogin />} />
+                  <Route path="/mahalla/dashboard" element={<MahallaGuard><MahallaDashboard /></MahallaGuard>} />
+                </Route>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </MahallaProvider>
       </AdminProvider>
     </I18nProvider>
   </QueryClientProvider>
