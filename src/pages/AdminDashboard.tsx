@@ -34,6 +34,8 @@ export default function AdminDashboard() {
   const [notes, setNotes] = useState("");
   const [fbStats, setFbStats] = useState<{ correct: number; incorrect: number; total: number; accuracy: number | null; by_complaint?: Record<string, { verdict: string | null; comment: string; created_at: string }> } | null>(null);
   const [escalating, setEscalating] = useState(false);
+  const [kpi, setKpi] = useState<any | null>(null);
+  const { can } = useAdmin();
 
   async function load() {
     setLoading(true);
