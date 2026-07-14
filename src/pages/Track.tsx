@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Search, MapPin, Calendar, Sparkles, FileText, ExternalLink, Image as ImageIcon, Info, Clock, ArrowRight, Link2, ThumbsUp, ThumbsDown, ChevronDown, ChevronRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/i18n/I18nProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusBadge } from "@/components/StatusBadge";
