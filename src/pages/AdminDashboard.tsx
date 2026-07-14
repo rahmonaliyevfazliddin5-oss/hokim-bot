@@ -386,6 +386,16 @@ tr:nth-child(even) td{background:#fafafa}
                 </div>
               )}
 
+              {fbMap[open.id] && (
+                <div className={`rounded-lg border p-3 ${fbMap[open.id].verdict === "correct" ? "bg-success/10 border-success/30" : "bg-destructive/10 border-destructive/30"}`}>
+                  <div className="text-xs font-bold uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                    {fbMap[open.id].verdict === "correct" ? <ThumbsUp className="h-3.5 w-3.5 text-success" /> : <ThumbsDown className="h-3.5 w-3.5 text-destructive" />}
+                    Fuqaro bahosi: {verdictLabel(fbMap[open.id].verdict)}
+                  </div>
+                  {fbMap[open.id].comment && <p className="text-xs whitespace-pre-wrap">{fbMap[open.id].comment}</p>}
+                </div>
+              )}
+
               {open.image_urls?.length > 0 && (
                 <div className="grid grid-cols-3 gap-2">
                   {open.image_urls.map((u: string, i: number) => (
