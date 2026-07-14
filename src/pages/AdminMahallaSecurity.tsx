@@ -211,11 +211,13 @@ export default function AdminMahallaSecurity() {
           <TabsTrigger value="sessions"><MonitorSmartphone className="h-4 w-4 mr-1" /> Sessiyalar</TabsTrigger>
           <TabsTrigger value="audit"><Activity className="h-4 w-4 mr-1" /> Audit</TabsTrigger>
           <TabsTrigger value="stats"><AlertTriangle className="h-4 w-4 mr-1" /> Statistika</TabsTrigger>
+          <TabsTrigger value="settings"><Settings className="h-4 w-4 mr-1" /> Sozlamalar</TabsTrigger>
         </TabsList>
 
         <TabsContent value="sessions"><SessionsTab /></TabsContent>
         <TabsContent value="audit"><AuditTab /></TabsContent>
         <TabsContent value="stats"><StatsTab /></TabsContent>
+        <TabsContent value="settings"><SettingsTab onSaved={loadAlerts} /></TabsContent>
       </Tabs>
     </div>
   );
