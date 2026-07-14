@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Shield, Ban, Search, RefreshCw, Activity, MonitorSmartphone, AlertTriangle, ChevronDown,
-  ArrowUpDown, Bell, BellRing, Download, FileText, CheckCheck,
+  ArrowUpDown, Bell, BellRing, Download, FileText, CheckCheck, Settings, Mail, Send, X,
 } from "lucide-react";
 import { adminCall } from "@/lib/adminApi";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,16 @@ interface AlertRow {
   seen_at: string | null;
   created_at: string;
 }
+interface DeliveryRow {
+  id: string;
+  alert_id: string;
+  channel: string;
+  recipient: string | null;
+  status: string;
+  error: string | null;
+  delivered_at: string | null;
+  created_at: string;
+}
 
 const AUDIT_ACTIONS = [
   { key: "mahalla_login_success", label: "Login (muvaffaqiyatli)" },
@@ -78,13 +88,16 @@ const deviceKind = (ua: string | null): "mobile" | "tablet" | "desktop" | "unkno
 // ============================================================
 export default function AdminMahallaSecurity() {
   const [alerts, setAlerts] = useState<AlertRow[]>([]);
+  const [deliveries, setDeliveries] = useState<DeliveryRow[]>([]);
   const [unseen, setUnseen] = useState(0);
   const [showAlerts, setShowAlerts] = useState(false);
 
   async function loadAlerts() {
     try {
-      const res = await adminCall<{ alerts: AlertRow[]; unseen: number }>("admin_alerts_list", { limit: 50 });
+      const res = await adminCall<{ alerts: AlertRow[]; deliveries?: DeliveryRow[]; unseen: number }>(
+        "admin_alerts_list", { limit: 50 });
       setAlerts(res.alerts || []);
+      setDeliveries(res.deliveries || []);
       setUnseen(res.unseen || 0);
     } catch (e: any) { /* silent */ }
   }
@@ -156,14 +169,34 @@ export default function AdminMahallaSecurity() {
                 const label = a.kind === "approaching_block" ? "Chegara yaqin"
                   : a.kind === "blocked" ? "Bloklandi"
                   : a.kind === "rate_limited_429" ? "429 Rate limit" : a.kind;
+                const alertDels = deliveries.filter((d) => d.alert_id === a.id);
                 return (
                   <div key={a.id} className={`py-2 flex items-start gap-3 ${a.seen_at ? "opacity-60" : ""}`}>
                     <span className={`text-[11px] px-2 py-0.5 rounded-full border ${tone} shrink-0`}>{label}</span>
-                    <div className="flex-1 text-sm">
+                    <div className="flex-1 text-sm min-w-0">
                       <div className="font-medium">{a.details ?? `${a.mahalla ?? "?"} / ${a.ip ?? "?"}`}</div>
                       <div className="text-xs text-muted-foreground">
                         {fmt(a.created_at)} · {a.count} xato / {a.window_minutes} daq.
                       </div>
+                      {alertDels.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {alertDels.map((d) => {
+                            const cls = d.status === "delivered" ? "bg-success/15 text-success border-success/30"
+                              : d.status === "failed" ? "bg-destructive/15 text-destructive border-destructive/30"
+                              : "bg-muted text-muted-foreground border-border";
+                            const tip = d.channel === "email"
+                              ? `${d.recipient ?? ""} · ${d.status}${d.delivered_at ? ` · ${new Date(d.delivered_at).toLocaleTimeString()}` : ""}${d.error ? ` · ${d.error}` : ""}`
+                              : `${d.channel} · ${d.status}`;
+                            return (
+                              <span key={d.id} title={tip}
+                                    className={`text-[10px] px-1.5 py-0.5 rounded-full border ${cls}`}>
+                                {d.channel === "email" ? "✉" : "◉"} {d.channel}: {d.status}
+                                {d.channel === "email" && d.recipient ? ` · ${d.recipient}` : ""}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -178,11 +211,13 @@ export default function AdminMahallaSecurity() {
           <TabsTrigger value="sessions"><MonitorSmartphone className="h-4 w-4 mr-1" /> Sessiyalar</TabsTrigger>
           <TabsTrigger value="audit"><Activity className="h-4 w-4 mr-1" /> Audit</TabsTrigger>
           <TabsTrigger value="stats"><AlertTriangle className="h-4 w-4 mr-1" /> Statistika</TabsTrigger>
+          <TabsTrigger value="settings"><Settings className="h-4 w-4 mr-1" /> Sozlamalar</TabsTrigger>
         </TabsList>
 
         <TabsContent value="sessions"><SessionsTab /></TabsContent>
         <TabsContent value="audit"><AuditTab /></TabsContent>
         <TabsContent value="stats"><StatsTab /></TabsContent>
+        <TabsContent value="settings"><SettingsTab onSaved={loadAlerts} /></TabsContent>
       </Tabs>
     </div>
   );
@@ -458,6 +493,9 @@ function AuditTab() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [mahalla, setMahalla] = useState("");
+  const [ipFilter, setIpFilter] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set(AUDIT_ACTIONS.map((a) => a.key)));
 
   async function load() {
@@ -467,8 +505,17 @@ function AuditTab() {
         q: q || undefined,
         mahalla: mahalla || undefined,
         actions: Array.from(selected),
+        from: fromDate ? new Date(fromDate).toISOString() : undefined,
+        to: toDate ? new Date(toDate + "T23:59:59").toISOString() : undefined,
       });
-      setRows(logs || []);
+      let filtered = logs || [];
+      if (ipFilter) {
+        const needle = ipFilter.toLowerCase();
+        filtered = filtered.filter((r) =>
+          (r.details ?? "").toLowerCase().includes(needle) ||
+          (r.actor ?? "").toLowerCase().includes(needle));
+      }
+      setRows(filtered);
     } catch (e: any) { toast.error(e.message); }
     setLoading(false);
   }
@@ -482,18 +529,46 @@ function AuditTab() {
     });
   }
 
+  function safeSlug(s: string) {
+    return s.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 40);
+  }
+  function buildFilename(ext: string) {
+    const parts: string[] = ["audit"];
+    if (fromDate || toDate) parts.push(`${fromDate || "…"}_${toDate || "…"}`);
+    else parts.push(new Date().toISOString().slice(0, 10));
+    if (mahalla) parts.push(`mfy-${safeSlug(mahalla)}`);
+    if (ipFilter) parts.push(`ip-${safeSlug(ipFilter)}`);
+    if (q) parts.push(`q-${safeSlug(q)}`);
+    const chosen = AUDIT_ACTIONS.filter((a) => selected.has(a.key));
+    if (chosen.length && chosen.length < AUDIT_ACTIONS.length) parts.push(`actions-${chosen.length}`);
+    return `${parts.join("__")}.${ext}`;
+  }
+  function filterSummary() {
+    const bits: string[] = [];
+    if (fromDate || toDate) bits.push(`Sana: ${fromDate || "…"} — ${toDate || "…"}`);
+    if (mahalla) bits.push(`MFY: ${mahalla}`);
+    if (ipFilter) bits.push(`IP: ${ipFilter}`);
+    if (q) bits.push(`Qidiruv: "${q}"`);
+    const chosen = AUDIT_ACTIONS.filter((a) => selected.has(a.key));
+    if (chosen.length && chosen.length < AUDIT_ACTIONS.length) {
+      bits.push(`Amallar: ${chosen.map((a) => a.key).join(", ")}`);
+    }
+    return bits.length ? bits.join(" · ") : "Filtr yo'q";
+  }
+
   function exportCSV() {
     if (rows.length === 0) { toast.error("Eksport uchun ma'lumot yo'q"); return; }
     const header = ["created_at", "action", "actor", "details"];
     const escape = (v: string) => `"${(v ?? "").replace(/"/g, '""')}"`;
+    const meta = `# Hokim AI audit eksport\n# Vaqt: ${new Date().toISOString()}\n# ${filterSummary()}\n# Yozuvlar: ${rows.length}\n`;
     const lines = [header.join(",")];
     for (const r of rows) {
       lines.push([r.created_at, r.action, r.actor ?? "", r.details ?? ""].map((v) => escape(String(v))).join(","));
     }
-    const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["\uFEFF" + meta + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.href = url; a.download = buildFilename("csv");
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
     toast.success(`${rows.length} yozuv CSV ga eksport qilindi`);
@@ -505,13 +580,15 @@ function AuditTab() {
     if (!win) { toast.error("Popup bloklangan"); return; }
     const escape = (v: string) => (v ?? "").replace(/[&<>]/g, (c) =>
       c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;");
+    const filename = buildFilename("pdf");
     const html = `
 <!doctype html><html><head><meta charset="utf-8"/>
-<title>Audit log — ${new Date().toLocaleDateString()}</title>
+<title>${escape(filename)}</title>
 <style>
   body { font-family: -apple-system, sans-serif; padding: 24px; color:#111; }
   h1 { font-size: 18px; margin: 0 0 4px; }
-  .meta { color:#666; font-size:12px; margin-bottom:16px; }
+  .meta { color:#666; font-size:12px; margin-bottom:6px; }
+  .filters { color:#333; font-size:12px; margin-bottom:16px; padding:6px 10px; background:#f5f7fa; border-left:3px solid #3b82f6; }
   table { width:100%; border-collapse: collapse; font-size:11px; }
   th, td { border:1px solid #ddd; padding:6px 8px; text-align:left; vertical-align:top; }
   th { background:#f5f5f5; text-transform:uppercase; font-size:10px; }
@@ -520,6 +597,7 @@ function AuditTab() {
 </style></head><body>
 <h1>Mahalla audit log</h1>
 <div class="meta">Eksport: ${new Date().toLocaleString()} · Yozuvlar: ${rows.length}</div>
+<div class="filters"><b>Filtr:</b> ${escape(filterSummary())}</div>
 <button class="noprint" onclick="window.print()">PDF sifatida saqlash / Chop etish</button>
 <table>
   <thead><tr><th>Vaqt</th><th>Amal</th><th>Actor</th><th>Tafsilot</th></tr></thead>
@@ -532,11 +610,12 @@ function AuditTab() {
     </tr>`).join("")}
   </tbody>
 </table>
-<script>setTimeout(function(){ window.print(); }, 300);</script>
+<script>setTimeout(function(){ document.title = ${JSON.stringify(filename)}; window.print(); }, 300);</script>
 </body></html>`;
     win.document.write(html);
     win.document.close();
   }
+
 
   const actionColor = (a: string) =>
     a === "mahalla_login_success" ? "bg-success/15 text-success"
@@ -558,7 +637,14 @@ function AuditTab() {
                  className="flex-1 min-w-[220px] border-0 bg-transparent focus-visible:ring-0" />
           <Input placeholder="MFY..." value={mahalla} onChange={(e) => setMahalla(e.target.value)}
                  onKeyDown={(e) => e.key === "Enter" && load()}
-                 className="max-w-[220px]" />
+                 className="max-w-[180px]" />
+          <Input placeholder="IP..." value={ipFilter} onChange={(e) => setIpFilter(e.target.value)}
+                 onKeyDown={(e) => e.key === "Enter" && load()}
+                 className="max-w-[140px]" />
+          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
+                 className="max-w-[150px]" title="Boshlanish sanasi" />
+          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)}
+                 className="max-w-[150px]" title="Tugash sanasi" />
           <Button size="sm" onClick={load}><RefreshCw className="h-3.5 w-3.5 mr-1" /> Qidirish</Button>
           <Button size="sm" variant="outline" onClick={exportCSV}>
             <Download className="h-3.5 w-3.5 mr-1" /> CSV
@@ -728,3 +814,145 @@ function StatCard({ label, value, tone }: { label: string; value: number; tone?:
     </div>
   );
 }
+
+// ============= Settings Tab =============
+interface AlertConfig {
+  approaching_threshold: number;
+  block_threshold: number;
+  window_minutes: number;
+  email_enabled: boolean;
+  email_provider: string;
+  email_from: string | null;
+  email_recipients: string[];
+}
+
+function SettingsTab({ onSaved }: { onSaved?: () => void }) {
+  const [cfg, setCfg] = useState<AlertConfig | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testTo, setTestTo] = useState("");
+  const [recipientsText, setRecipientsText] = useState("");
+
+  async function load() {
+    setLoading(true);
+    try {
+      const { config } = await adminCall<{ config: AlertConfig }>("admin_alert_config_get", {});
+      setCfg(config);
+      setRecipientsText((config.email_recipients || []).join(", "));
+    } catch (e: any) { toast.error(e.message); }
+    setLoading(false);
+  }
+  useEffect(() => { load(); }, []);
+
+  function update<K extends keyof AlertConfig>(k: K, v: AlertConfig[K]) {
+    setCfg((prev) => prev ? { ...prev, [k]: v } : prev);
+  }
+
+  async function save() {
+    if (!cfg) return;
+    if (cfg.approaching_threshold >= cfg.block_threshold) {
+      toast.error("Yaqinlashish chegarasi bloklashdan kichik bo'lishi kerak");
+      return;
+    }
+    const recipients = recipientsText.split(/[,\n;]+/).map((s) => s.trim()).filter(Boolean);
+    setSaving(true);
+    try {
+      await adminCall("admin_alert_config_set", { ...cfg, email_recipients: recipients });
+      toast.success("Sozlamalar saqlandi");
+      onSaved?.();
+      await load();
+    } catch (e: any) { toast.error(e.message); }
+    setSaving(false);
+  }
+
+  async function sendTest() {
+    if (!testTo || !testTo.includes("@")) { toast.error("To'g'ri email kiriting"); return; }
+    try {
+      const res = await adminCall<{ ok: boolean; error?: string }>("admin_alert_test_email", { to: testTo });
+      if (res.ok) toast.success(`Test email yuborildi: ${testTo}`);
+      else toast.error(`Xato: ${res.error ?? "unknown"}`);
+    } catch (e: any) { toast.error(e.message); }
+  }
+
+  if (loading || !cfg) {
+    return <div className="glass rounded-2xl p-6 text-sm text-muted-foreground">Yuklanmoqda...</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="glass rounded-2xl p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <AlertTriangle className="h-4 w-4 text-warning" />
+          <h3 className="font-semibold">Alert chegaralari</h3>
+        </div>
+        <div className="grid sm:grid-cols-3 gap-4">
+          <label className="text-sm space-y-1 block">
+            <span className="text-muted-foreground">Yaqinlashish chegarasi</span>
+            <Input type="number" min={1} max={20} value={cfg.approaching_threshold}
+                   onChange={(e) => update("approaching_threshold", Math.max(1, +e.target.value || 1))} />
+            <span className="text-[11px] text-muted-foreground">Shundagi xato urinishlarda "chegara yaqin" alert</span>
+          </label>
+          <label className="text-sm space-y-1 block">
+            <span className="text-muted-foreground">Bloklash chegarasi</span>
+            <Input type="number" min={2} max={50} value={cfg.block_threshold}
+                   onChange={(e) => update("block_threshold", Math.max(2, +e.target.value || 2))} />
+            <span className="text-[11px] text-muted-foreground">Shundagi xato urinishlarda IP+MFY bloklanadi</span>
+          </label>
+          <label className="text-sm space-y-1 block">
+            <span className="text-muted-foreground">Oyna (daqiqa)</span>
+            <Input type="number" min={1} max={1440} value={cfg.window_minutes}
+                   onChange={(e) => update("window_minutes", Math.max(1, +e.target.value || 1))} />
+            <span className="text-[11px] text-muted-foreground">Xato urinishlarni sanash oynasi</span>
+          </label>
+        </div>
+      </div>
+
+      <div className="glass rounded-2xl p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Mail className="h-4 w-4 text-primary" />
+          <h3 className="font-semibold">Email yetkazib berish</h3>
+        </div>
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={cfg.email_enabled}
+                   onChange={(e) => update("email_enabled", e.target.checked)} />
+            <span>Alertlarni email orqali yuborish</span>
+          </label>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <label className="text-sm space-y-1 block">
+              <span className="text-muted-foreground">Yuboruvchi (From)</span>
+              <Input placeholder="Hokim AI <alerts@yourdomain.com>"
+                     value={cfg.email_from ?? ""} onChange={(e) => update("email_from", e.target.value || null)} />
+              <span className="text-[11px] text-muted-foreground">
+                Resend'da tasdiqlangan domen. Bo'sh bo'lsa: onboarding@resend.dev (faqat egaga)
+              </span>
+            </label>
+            <label className="text-sm space-y-1 block">
+              <span className="text-muted-foreground">Provider</span>
+              <Input value={cfg.email_provider} onChange={(e) => update("email_provider", e.target.value)} />
+            </label>
+          </div>
+          <label className="text-sm space-y-1 block">
+            <span className="text-muted-foreground">Qabul qiluvchilar (vergul yoki qator bilan ajrating)</span>
+            <textarea value={recipientsText} onChange={(e) => setRecipientsText(e.target.value)}
+                      rows={3} placeholder="admin@fargona.uz, ceo@fargona.uz"
+                      className="w-full text-sm rounded-md border border-border bg-background px-3 py-2" />
+          </label>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={save} disabled={saving}>
+          {saving ? "Saqlanmoqda..." : "Sozlamalarni saqlash"}
+        </Button>
+        <div className="flex-1" />
+        <Input placeholder="test@example.com" value={testTo} onChange={(e) => setTestTo(e.target.value)}
+               className="max-w-[240px]" />
+        <Button variant="outline" onClick={sendTest}>
+          <Send className="h-3.5 w-3.5 mr-1" /> Test email
+        </Button>
+      </div>
+    </div>
+  );
+}
+
