@@ -263,3 +263,18 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
+function FilterSelect({ label, value, setValue, options }: { label: string; value: string; setValue: (v: string) => void; options: { v: string; l: string }[] }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 font-semibold">{label}</div>
+      <Select value={value} onValueChange={setValue}>
+        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Barchasi</SelectItem>
+          {options.map(o => <SelectItem key={o.v} value={o.v} className="text-xs">{o.l}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
