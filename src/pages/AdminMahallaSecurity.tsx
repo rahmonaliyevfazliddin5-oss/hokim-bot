@@ -637,7 +637,14 @@ function AuditTab() {
                  className="flex-1 min-w-[220px] border-0 bg-transparent focus-visible:ring-0" />
           <Input placeholder="MFY..." value={mahalla} onChange={(e) => setMahalla(e.target.value)}
                  onKeyDown={(e) => e.key === "Enter" && load()}
-                 className="max-w-[220px]" />
+                 className="max-w-[180px]" />
+          <Input placeholder="IP..." value={ipFilter} onChange={(e) => setIpFilter(e.target.value)}
+                 onKeyDown={(e) => e.key === "Enter" && load()}
+                 className="max-w-[140px]" />
+          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
+                 className="max-w-[150px]" title="Boshlanish sanasi" />
+          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)}
+                 className="max-w-[150px]" title="Tugash sanasi" />
           <Button size="sm" onClick={load}><RefreshCw className="h-3.5 w-3.5 mr-1" /> Qidirish</Button>
           <Button size="sm" variant="outline" onClick={exportCSV}>
             <Download className="h-3.5 w-3.5 mr-1" /> CSV
