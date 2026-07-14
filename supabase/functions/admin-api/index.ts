@@ -585,8 +585,9 @@ Deno.serve(async (req) => {
 
     // ---- Per-mahalla login stats ----
     if (action === "admin_mahalla_login_stats") {
+      const cfg = await getAlertConfig();
       const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const sinceWindow = new Date(Date.now() - RL_WINDOW_MIN * 60 * 1000).toISOString();
+      const sinceWindow = new Date(Date.now() - cfg.window_minutes * 60 * 1000).toISOString();
       const { data: attempts, error } = await supabase.from("mahalla_login_attempts")
         .select("mahalla, ip, success, attempted_at")
         .gte("attempted_at", since24h)
