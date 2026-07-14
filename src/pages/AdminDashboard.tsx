@@ -30,6 +30,7 @@ export default function AdminDashboard() {
   const [open, setOpen] = useState<any | null>(null);
   const [newStatus, setNewStatus] = useState("");
   const [notes, setNotes] = useState("");
+  const [fbStats, setFbStats] = useState<{ correct: number; incorrect: number; total: number; accuracy: number | null } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -41,7 +42,13 @@ export default function AdminDashboard() {
     }
     setLoading(false);
   }
-  useEffect(() => { load(); }, []);
+  async function loadFeedback() {
+    try {
+      const s = await adminCall<any>("routing_feedback_stats");
+      setFbStats(s);
+    } catch { /* ignore */ }
+  }
+  useEffect(() => { load(); loadFeedback(); }, []);
 
   const counts = {
     total: items.length,
