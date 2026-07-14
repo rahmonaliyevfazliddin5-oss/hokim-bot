@@ -53,12 +53,30 @@ export default function AdminDashboard() {
 
   const itemCats = (i: any): string[] => (i.categories?.length ? i.categories : [i.category]);
 
+  const mahallaOptions = Array.from(new Set(items.map(i => i.mahalla).filter(Boolean))).sort();
+  const orgOptions = Array.from(new Set(items.map(i => i.responsible_org).filter(Boolean))).sort();
+
   const filtered = items.filter(i => {
     if (fStatus !== "all" && i.status !== fStatus) return false;
     if (fCat !== "all" && !itemCats(i).includes(fCat)) return false;
-    if (search && !(`${i.tracking_code} ${i.citizen_name} ${i.text} ${i.district || ""} ${i.mahalla || ""}`).toLowerCase().includes(search.toLowerCase())) return false;
+    if (fSev !== "all" && i.severity !== fSev) return false;
+    if (fRoute !== "all" && i.routing_target !== fRoute) return false;
+    if (fMahalla !== "all" && i.mahalla !== fMahalla) return false;
+    if (fOrg !== "all" && i.responsible_org !== fOrg) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const hay = `${i.tracking_code} ${i.citizen_name} ${i.citizen_phone || ""} ${i.text} ${i.district || ""} ${i.mahalla || ""} ${i.responsible_org || ""} ${i.location || ""}`.toLowerCase();
+      // Support space-separated multi-term AND search
+      const terms = q.split(/\s+/).filter(Boolean);
+      if (!terms.every(term => hay.includes(term))) return false;
+    }
     return true;
   });
+
+  const activeFilters = [fStatus, fCat, fSev, fRoute, fMahalla, fOrg].filter(v => v !== "all").length + (search ? 1 : 0);
+  function resetFilters() {
+    setSearch(""); setFStatus("all"); setFCat("all"); setFSev("all"); setFRoute("all"); setFMahalla("all"); setFOrg("all");
+  }
 
   function openItem(it: any) {
     setOpen(it); setNewStatus(it.status); setNotes(it.admin_notes || "");
