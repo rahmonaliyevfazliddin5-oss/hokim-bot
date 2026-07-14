@@ -305,16 +305,12 @@ function ReasoningPanel({ data, open, onToggle, feedback, onFeedback }: any) {
             {feedback ? (
               <div className="text-xs text-muted-foreground">
                 Bahoingiz uchun rahmat: <span className="font-semibold text-foreground">{feedback === "correct" ? "To'g'ri" : "Noto'g'ri"}</span>
+                <button
+                  onClick={() => { localStorage.removeItem(FB_KEY(data.tracking_code)); onFeedback.__setFb?.(null); }}
+                  className="ml-2 underline hover:text-primary">o'zgartirish</button>
               </div>
             ) : (
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => onFeedback("correct")}>
-                  <ThumbsUp className="mr-1 h-3.5 w-3.5" /> To'g'ri
-                </Button>
-                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => onFeedback("incorrect")}>
-                  <ThumbsDown className="mr-1 h-3.5 w-3.5" /> Noto'g'ri
-                </Button>
-              </div>
+              <FeedbackForm onSubmit={onFeedback} />
             )}
           </div>
         </>
