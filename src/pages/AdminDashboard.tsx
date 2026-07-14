@@ -67,7 +67,7 @@ export default function AdminDashboard() {
   async function loadKpi() {
     try { setKpi(await adminCall<any>("sla_kpi_stats")); } catch { /* ignore */ }
   }
-  useEffect(() => { loadKpi(); }, []);
+  useEffect(() => { load(); loadFeedback(); loadKpi(); }, []);
 
 
   const counts = {
