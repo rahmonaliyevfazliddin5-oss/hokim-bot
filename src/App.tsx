@@ -18,6 +18,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AdminStats from "./pages/AdminStats";
 import AdminUsers from "./pages/AdminUsers";
 import AdminLogs from "./pages/AdminLogs";
+import AdminMahallaPasswords from "./pages/AdminMahallaPasswords";
 import MahallaLogin from "./pages/MahallaLogin";
 import MahallaDashboard from "./pages/MahallaDashboard";
 import NotFound from "./pages/NotFound";
