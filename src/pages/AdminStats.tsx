@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useI18n } from "@/i18n/I18nProvider";
 import { adminCall } from "@/lib/adminApi";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend } from "recharts";
+import { FARGONA_TUMAN_MAHALLAS } from "@/lib/fargona";
 
 const COLORS = ["hsl(210 75% 52%)", "hsl(38 92% 50%)", "hsl(152 60% 38%)", "hsl(0 75% 52%)", "hsl(215 50% 35%)", "hsl(222 60% 18%)"];
 
@@ -24,9 +25,21 @@ export default function AdminStats() {
     name: t(`status.${s}`), value: items.filter(i => i.status === s).length,
   }));
 
-  const districts = Array.from(new Set(items.map(i => i.district).filter(Boolean))) as string[];
-  const byDistrict = districts.map(d => ({ name: d, value: items.filter(i => i.district === d).length }))
-    .sort((a, b) => b.value - a.value).slice(0, 10);
+  const byMahalla = useMemo(() => {
+    const rows = FARGONA_TUMAN_MAHALLAS.map(name => ({
+      name,
+      value: items.filter(i => (i.mahalla || "").trim() === name).length,
+    }));
+    const maxVal = Math.max(0, ...rows.map(r => r.value));
+    const colorFor = (v: number) => {
+      if (v === 0) return "hsl(152 60% 42%)"; // green
+      if (maxVal > 0 && v >= maxVal * 0.66) return "hsl(0 75% 52%)"; // red
+      return "hsl(38 92% 50%)"; // yellow
+    };
+    return rows
+      .map(r => ({ ...r, fill: colorFor(r.value) }))
+      .sort((a, b) => b.value - a.value);
+  }, [items]);
 
   const days = Array.from({ length: 7 }).map((_, i) => {
     const d = new Date(); d.setDate(d.getDate() - (6 - i));
@@ -87,21 +100,29 @@ export default function AdminStats() {
         </div>
 
         <div className="glass rounded-2xl p-6">
-          <h3 className="font-bold mb-4">{t("admin.by_district")}</h3>
-          {byDistrict.length === 0 ? (
-            <div className="h-[260px] flex items-center justify-center text-muted-foreground text-sm">{t("admin.no_data")}</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={byDistrict} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis type="number" fontSize={12} allowDecimals={false} />
-                <YAxis type="category" dataKey="name" fontSize={11} width={120} />
-                <Tooltip />
-                <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 8, 8, 0]} />
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <h3 className="font-bold">{t("admin.by_mahalla")}</h3>
+            <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full inline-block" style={{ background: "hsl(0 75% 52%)" }} />{t("admin.legend_high")}</span>
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full inline-block" style={{ background: "hsl(38 92% 50%)" }} />{t("admin.legend_mid")}</span>
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full inline-block" style={{ background: "hsl(152 60% 42%)" }} />{t("admin.legend_none")}</span>
+            </div>
+          </div>
+          <div className="max-h-[520px] overflow-y-auto pr-1">
+            <ResponsiveContainer width="100%" height={Math.max(260, byMahalla.length * 22)}>
+              <BarChart data={byMahalla} layout="vertical" margin={{ left: 8, right: 16 }}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                <XAxis type="number" fontSize={11} allowDecimals={false} />
+                <YAxis type="category" dataKey="name" fontSize={10} width={130} interval={0} />
+                <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid hsl(var(--border))" }} />
+                <Bar dataKey="value" radius={[0, 6, 6, 0]}>
+                  {byMahalla.map((row, i) => <Cell key={i} fill={row.fill} />)}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
-          )}
+          </div>
         </div>
+
       </div>
     </div>
   );
