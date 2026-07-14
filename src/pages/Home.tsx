@@ -17,6 +17,11 @@ export default function Home() {
 
   return (
     <div className="max-w-6xl mx-auto">
+      <SEO
+        title="Hokim AI — Farg'ona tumani hokimligi murojaatlar tizimi"
+        description="Farg'ona tumani hokimligi rasmiy murojaatlar platformasi. AI yordamida tezkor tahlil, kuzatuv va aloqa."
+        path="/"
+      />
       {/* Hero */}
       <section className="relative overflow-hidden rounded-3xl gradient-hero text-primary-foreground p-8 md:p-14 shadow-elegant">
         <div className="absolute inset-0 opacity-10" style={{
