@@ -23,6 +23,14 @@ const schema = z.object({
   text: z.string().trim().min(10, "Kamida 10 ta belgi").max(2000),
 });
 
+type UploadState = {
+  status: "idle" | "uploading" | "retrying" | "done" | "failed";
+  attempt: number;
+  maxAttempts: number;
+  error?: string;
+  cid?: string;
+};
+
 export default function Submit() {
   const { t } = useI18n();
   const [form, setForm] = useState({
@@ -31,6 +39,7 @@ export default function Submit() {
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [images, setImages] = useState<{ file: File; url: string; uploadedUrl?: string }[]>([]);
+  const [uploadStates, setUploadStates] = useState<UploadState[]>([]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ code: string; cats: string[]; response: string; severity: string; routing: string; org: string; etaLabel: string } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -40,12 +49,22 @@ export default function Submit() {
 
   const update = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
 
-  function getGeo() {
-    if (!navigator.geolocation) { toast.error(t("submit.geo_err")); return; }
+  async function getGeo() {
+    const { reportError } = await import("@/lib/errors");
+    if (!navigator.geolocation) {
+      reportError("map_geolocation", new Error("geolocation_unsupported"));
+      return;
+    }
     setGeoLoading(true);
     navigator.geolocation.getCurrentPosition(
       pos => { setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude }); setGeoLoading(false); toast.success(t("submit.geo_ok")); },
-      () => { setGeoLoading(false); toast.error(t("submit.geo_err")); },
+      (err) => {
+        setGeoLoading(false);
+        reportError("map_geolocation", {
+          message: err?.message || "geolocation_failed",
+          code: err?.code,
+        });
+      },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }
@@ -55,10 +74,16 @@ export default function Submit() {
     const arr = Array.from(files).slice(0, 5 - images.length);
     const next = arr.map(f => ({ file: f, url: URL.createObjectURL(f) }));
     setImages(p => [...p, ...next]);
+    setUploadStates(p => [...p, ...next.map<UploadState>(() => ({ status: "idle", attempt: 0, maxAttempts: 4 }))]);
   }
 
   function removeImg(i: number) {
     setImages(p => p.filter((_, idx) => idx !== i));
+    setUploadStates(p => p.filter((_, idx) => idx !== i));
+  }
+
+  function setUploadAt(i: number, patch: Partial<UploadState>) {
+    setUploadStates(prev => prev.map((s, idx) => idx === i ? { ...s, ...patch } : s));
   }
 
   async function uploadAll(): Promise<string[]> {
