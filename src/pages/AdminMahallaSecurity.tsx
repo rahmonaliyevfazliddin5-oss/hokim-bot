@@ -88,13 +88,16 @@ const deviceKind = (ua: string | null): "mobile" | "tablet" | "desktop" | "unkno
 // ============================================================
 export default function AdminMahallaSecurity() {
   const [alerts, setAlerts] = useState<AlertRow[]>([]);
+  const [deliveries, setDeliveries] = useState<DeliveryRow[]>([]);
   const [unseen, setUnseen] = useState(0);
   const [showAlerts, setShowAlerts] = useState(false);
 
   async function loadAlerts() {
     try {
-      const res = await adminCall<{ alerts: AlertRow[]; unseen: number }>("admin_alerts_list", { limit: 50 });
+      const res = await adminCall<{ alerts: AlertRow[]; deliveries?: DeliveryRow[]; unseen: number }>(
+        "admin_alerts_list", { limit: 50 });
       setAlerts(res.alerts || []);
+      setDeliveries(res.deliveries || []);
       setUnseen(res.unseen || 0);
     } catch (e: any) { /* silent */ }
   }
