@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
   try {
     const { action, ...params } = await req.json();
 
-    // ---- Public action: login ----
+    // ---- Public action: login (super-admin) ----
     if (action === "login") {
       const { username, password } = params;
       const okUser =
@@ -112,19 +112,86 @@ Deno.serve(async (req) => {
         username === ADMIN_USERNAME &&
         password === ADMIN_PASSWORD;
       if (!okUser) {
-        // small delay to slow brute-force
         await new Promise((r) => setTimeout(r, 400));
         return json({ error: "invalid_credentials" }, 401);
       }
-      return json({ token: await makeToken() });
+      return json({ token: await makeToken({ sub: "admin" }) });
     }
 
-    // ---- All other actions require a valid admin token ----
+    // ---- Public action: mahalla login ----
+    if (action === "mahalla_login") {
+      const { mahalla, password } = params;
+      const okUser =
+        typeof mahalla === "string" &&
+        mahalla.length > 0 &&
+        typeof password === "string" &&
+        password === ADMIN_PASSWORD;
+      if (!okUser) {
+        await new Promise((r) => setTimeout(r, 400));
+        return json({ error: "invalid_credentials" }, 401);
+      }
+      return json({ token: await makeToken({ sub: "mahalla", mahalla }), mahalla });
+    }
+
+    // ---- All other actions require a valid token ----
     const auth = req.headers.get("authorization") || "";
     const token = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7) : params.token ?? null;
-    if (!(await verifyToken(token))) {
-      return json({ error: "unauthorized" }, 401);
+    const payload = await verifyTokenPayload(token);
+    if (!payload) return json({ error: "unauthorized" }, 401);
+    const isAdmin = payload.sub === "admin";
+    const isMahalla = payload.sub === "mahalla" && typeof payload.mahalla === "string";
+
+    // ---- Mahalla-scoped actions ----
+    if (isMahalla) {
+      const mahalla = payload.mahalla as string;
+
+      if (action === "mahalla_list_complaints") {
+        const { data, error } = await supabase
+          .from("complaints")
+          .select("*")
+          .eq("mahalla", mahalla)
+          .order("created_at", { ascending: false })
+          .limit(1000);
+        if (error) return json({ error: error.message }, 500);
+        const rows = await Promise.all(
+          (data ?? []).map(async (r) => ({ ...r, image_urls: await signImages(r.image_urls) })),
+        );
+        return json({ complaints: rows, mahalla });
+      }
+
+      if (action === "mahalla_update_complaint") {
+        const { id, status, admin_notes } = params;
+        if (typeof id !== "string") return json({ error: "id_required" }, 400);
+        const allowed = ["yangi", "jarayonda", "bajarildi", "rad_etildi"];
+        if (typeof status !== "string" || !allowed.includes(status)) {
+          return json({ error: "invalid_status" }, 400);
+        }
+        const { data: prev } = await supabase
+          .from("complaints")
+          .select("status, tracking_code, mahalla")
+          .eq("id", id)
+          .maybeSingle();
+        if (!prev || prev.mahalla !== mahalla) return json({ error: "forbidden" }, 403);
+        const notes = typeof admin_notes === "string" && admin_notes.length ? admin_notes.slice(0, 2000) : null;
+        const { error } = await supabase
+          .from("complaints")
+          .update({ status, admin_notes: notes })
+          .eq("id", id);
+        if (error) return json({ error: error.message }, 500);
+        await supabase.from("activity_logs").insert({
+          action: "status_changed",
+          details: `${prev.tracking_code}: ${prev.status} → ${status}`,
+          actor: `mahalla:${mahalla}`,
+          complaint_id: id,
+        });
+        return json({ ok: true });
+      }
+
+      return json({ error: "forbidden" }, 403);
     }
+
+    if (!isAdmin) return json({ error: "unauthorized" }, 401);
+
 
     if (action === "list_complaints") {
       const { data, error } = await supabase
