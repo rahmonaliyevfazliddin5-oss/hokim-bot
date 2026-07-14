@@ -28,6 +28,7 @@ export function AppSidebar() {
     { url: "/admin/stats", icon: BarChart3, label: t("nav.stats") },
     { url: "/admin/users", icon: Users, label: t("nav.users") },
     { url: "/admin/logs", icon: ScrollText, label: t("nav.logs") },
+    { url: "/admin/mahalla-passwords", icon: KeyRound, label: "Mahalla parollari" },
   ];
 
   const linkCls = (active: boolean) => cn("flex items-center gap-3 w-full", active && "font-semibold");
