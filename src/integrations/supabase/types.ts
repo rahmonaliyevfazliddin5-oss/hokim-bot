@@ -168,6 +168,42 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_users: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          full_name: string | null
+          id: string
+          password_hash: string
+          role: string
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          full_name?: string | null
+          id?: string
+          password_hash: string
+          role: string
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          full_name?: string | null
+          id?: string
+          password_hash?: string
+          role?: string
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
       complaints: {
         Row: {
           admin_notes: string | null
@@ -258,6 +294,39 @@ export type Database = {
           text?: string
           tracking_code?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      escalation_rules: {
+        Row: {
+          enabled: boolean
+          id: number
+          max_severity: string
+          reroute_to_hokimiyat_days: number
+          severity_bump_days: number
+          target_status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          enabled?: boolean
+          id?: number
+          max_severity?: string
+          reroute_to_hokimiyat_days?: number
+          severity_bump_days?: number
+          target_status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          id?: number
+          max_severity?: string
+          reroute_to_hokimiyat_days?: number
+          severity_bump_days?: number
+          target_status?: string
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
