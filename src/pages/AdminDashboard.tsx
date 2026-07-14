@@ -64,7 +64,11 @@ export default function AdminDashboard() {
     }
     setEscalating(false);
   }
-  useEffect(() => { load(); loadFeedback(); }, []);
+  async function loadKpi() {
+    try { setKpi(await adminCall<any>("sla_kpi_stats")); } catch { /* ignore */ }
+  }
+  useEffect(() => { loadKpi(); }, []);
+
 
   const counts = {
     total: items.length,
