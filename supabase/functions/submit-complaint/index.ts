@@ -22,6 +22,15 @@ function ymdUTC(d: Date) {
   return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
+function randSuffix(len = 5): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
+  const bytes = new Uint8Array(len);
+  crypto.getRandomValues(bytes);
+  let out = "";
+  for (let i = 0; i < len; i++) out += alphabet[bytes[i] % alphabet.length];
+  return out;
+}
+
 async function nextTrackingCode(): Promise<string> {
   const now = new Date();
   const ymd = ymdUTC(now);
@@ -32,7 +41,8 @@ async function nextTrackingCode(): Promise<string> {
     .gte("created_at", start)
     .lte("created_at", end);
   const seq = String((count ?? 0) + 1).padStart(4, "0");
-  return `HOK-${ymd}-${seq}`;
+  // Random suffix prevents enumeration of citizen complaints via the public tracking endpoint.
+  return `HOK-${ymd}-${seq}-${randSuffix(5)}`;
 }
 
 const ALLOWED_SEVERITY = new Set(["oddiy", "orta", "yuqori"]);
