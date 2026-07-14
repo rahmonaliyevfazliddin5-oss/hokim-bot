@@ -47,8 +47,8 @@ export default function MahallaLogin() {
           </div>
           <div className="space-y-1.5">
             <Label>Parol</Label>
-            <Input type="password" value={p} onChange={e => setP(e.target.value)} placeholder="mahallanomi123" />
-            <p className="text-[11px] text-muted-foreground"></p>
+            <Input type="password" value={p} onChange={e => setP(e.target.value)} autoComplete="current-password" />
+
           </div>
           <Button type="submit" disabled={busy} className="w-full gradient-accent text-accent-foreground" size="lg">
             <LogIn className="mr-2 h-4 w-4" /> Kirish
