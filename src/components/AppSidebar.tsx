@@ -37,7 +37,7 @@ export function AppSidebar() {
       <SidebarHeader className="border-b border-sidebar-border">
         <div className="flex items-center gap-2.5 px-2 py-3">
           <div className="h-10 w-10 rounded-lg bg-white/10 backdrop-blur flex items-center justify-center shadow-elegant shrink-0 overflow-hidden">
-            <img src={logo} alt="Farg'ona hokimligi" className="h-9 w-9 object-contain" />
+            <img src={logoAsset.url} alt="Farg'ona hokimligi" className="h-9 w-9 object-contain" />
           </div>
           {!collapsed && (
             <div className="min-w-0">
