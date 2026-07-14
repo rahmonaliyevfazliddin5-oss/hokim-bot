@@ -13,6 +13,8 @@ import { toast } from "sonner";
 
 const STATUSES = ["qabul_qilindi", "ai_tahlil", "mahallaga_yuborildi", "hokimiyatga_yuborildi", "korib_chiqilmoqda", "jarayonda", "hal_qilindi", "rad_etildi"];
 const CATS = ["gaz", "elektr", "suv", "chiqindi", "yo_l", "boshqa"];
+const SEVERITIES = ["oddiy", "orta", "yuqori"];
+const ROUTINGS = ["mahalla", "hokimiyat"];
 
 export default function AdminDashboard() {
   const { t, lang } = useI18n();
