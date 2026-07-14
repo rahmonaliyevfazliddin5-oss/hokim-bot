@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { FARGONA_TUMAN_NAME } from "@/lib/fargona";
 import { MahallaCombobox } from "@/components/MahallaCombobox";
+import { SEO } from "@/components/SEO";
 
 const schema = z.object({
   citizen_name: z.string().trim().min(2).max(120),
@@ -192,6 +193,11 @@ export default function Submit() {
 
   return (
     <div className="max-w-2xl mx-auto">
+      <SEO
+        title="Murojaat yuborish — Hokim AI"
+        description="Farg'ona tumani hokimligiga murojaat yuboring. AI muammoni tahlil qilib, mas'ul tashkilotga yo'naltiradi."
+        path="/submit"
+      />
       <div className="mb-6">
         <h1 className="text-3xl md:text-4xl font-extrabold mb-1">{t("submit.title")}</h1>
         <p className="text-muted-foreground">{t("submit.subtitle")}</p>
@@ -273,7 +279,7 @@ export default function Submit() {
               {images.map((img, i) => (
                 <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-border">
                   <img src={img.url} alt="" className="w-full h-full object-cover" />
-                  <button type="button" onClick={() => removeImg(i)} className="absolute top-1 right-1 h-6 w-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center">
+                  <button type="button" onClick={() => removeImg(i)} aria-label="Rasmni o'chirish" className="absolute top-1 right-1 h-6 w-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center">
                     <X className="h-3.5 w-3.5" />
                   </button>
                 </div>

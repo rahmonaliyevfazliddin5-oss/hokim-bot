@@ -12,6 +12,7 @@ import {
   detectSafetyTopic, SAFETY_REDIRECTS, voiceIdFor,
 } from "@/lib/persona";
 import { cn } from "@/lib/utils";
+import { SEO } from "@/components/SEO";
 
 interface Msg { id?: string; role: "user" | "assistant"; content: string; persona?: PersonaKey; safety?: boolean; }
 
@@ -187,7 +188,7 @@ function AvatarPicker({
       <div onClick={e => e.stopPropagation()} className="w-full max-w-lg glass rounded-2xl p-4 shadow-2xl border border-border/60">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-bold flex items-center gap-2"><Users className="h-4 w-4 text-accent" /> Virtual avatar bilan bog'lanish</h3>
-          <button onClick={onClose} className="h-8 w-8 rounded-full hover:bg-secondary flex items-center justify-center"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} aria-label="Yopish" className="h-8 w-8 rounded-full hover:bg-secondary flex items-center justify-center"><X className="h-4 w-4" /></button>
         </div>
         <div className="grid grid-cols-2 gap-2 max-h-[60vh] overflow-y-auto">
           {list.map(p => {
@@ -305,7 +306,7 @@ function SpeakingAvatar({
           onClick={e => e.stopPropagation()}
           className="w-full max-w-md glass rounded-3xl p-5 shadow-2xl border border-border/60 relative"
         >
-          <button onClick={() => { stop(); onClose(); }}
+          <button onClick={() => { stop(); onClose(); }} aria-label="Yopish"
             className="absolute right-3 top-3 h-9 w-9 rounded-full bg-secondary hover:bg-secondary/70 flex items-center justify-center z-10">
             <X className="h-4 w-4" />
           </button>
@@ -607,6 +608,11 @@ export default function Chat() {
 
   return (
     <div className="max-w-3xl mx-auto flex flex-col h-[calc(100vh-12rem)]">
+      <SEO
+        title="AI yordamchi — Hokim AI"
+        description="Farg'ona tumani hokimligi bo'limlari avatarlaridan javob oling: gaz, svet, ta'lim, sog'liq va boshqa yo'nalishlar."
+        path="/chat"
+      />
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-extrabold flex items-center gap-2"><MessageSquare className="h-6 w-6 text-accent" />{t("chat.title")}</h1>

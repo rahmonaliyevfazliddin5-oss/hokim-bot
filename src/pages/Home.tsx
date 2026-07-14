@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Sparkles, Zap, ShieldCheck, ArrowRight, Search, MessageSquare, Building2, Phone, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n/I18nProvider";
+import { SEO } from "@/components/SEO";
 import logoAsset from "@/assets/hokim-logo.png.asset.json";
 
 export default function Home() {
@@ -16,6 +17,11 @@ export default function Home() {
 
   return (
     <div className="max-w-6xl mx-auto">
+      <SEO
+        title="Hokim AI — Farg'ona tumani hokimligi murojaatlar tizimi"
+        description="Farg'ona tumani hokimligi rasmiy murojaatlar platformasi. AI yordamida tezkor tahlil, kuzatuv va aloqa."
+        path="/"
+      />
       {/* Hero */}
       <section className="relative overflow-hidden rounded-3xl gradient-hero text-primary-foreground p-8 md:p-14 shadow-elegant">
         <div className="absolute inset-0 opacity-10" style={{
@@ -46,7 +52,8 @@ export default function Home() {
       </section>
 
       {/* Features */}
-      <section className="grid md:grid-cols-3 gap-5 mt-8">
+      <section className="grid md:grid-cols-3 gap-5 mt-8" aria-labelledby="features-heading">
+        <h2 id="features-heading" className="sr-only">{t("hero.features_heading") || "Platforma imkoniyatlari"}</h2>
         {features.map((f, i) => (
           <motion.div key={f.title} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 * i }}
             className="glass rounded-2xl p-6 transition-smooth hover:-translate-y-0.5 hover:shadow-elegant">
@@ -74,6 +81,29 @@ export default function Home() {
           <div><div className="text-xs text-muted-foreground">Manzil</div><div className="font-bold">Farg'ona tumani hokimligi</div></div>
         </div>
       </section>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{
+        __html: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "GovernmentOrganization",
+          "name": "Hokim AI — Farg'ona tumani hokimligi",
+          "url": "https://hokim-bot.lovable.app/",
+          "logo": "https://hokim-bot.lovable.app/favicon.ico",
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "telephone": "+998-73-244-44-77",
+            "contactType": "customer service",
+            "areaServed": "UZ",
+            "availableLanguage": ["uz", "ru"]
+          },
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "Mustaqillik ko'chasi, 24",
+            "addressLocality": "Farg'ona",
+            "addressRegion": "Farg'ona viloyati",
+            "addressCountry": "UZ"
+          }
+        })
+      }} />
     </div>
   );
 }
