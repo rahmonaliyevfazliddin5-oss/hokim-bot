@@ -116,9 +116,37 @@ function clientIp(req: Request): string {
   return fwd.split(",")[0].trim() || "0.0.0.0";
 }
 
+// ---------- alert config (cached) ----------
+interface AlertConfig {
+  approaching_threshold: number;
+  block_threshold: number;
+  window_minutes: number;
+  email_enabled: boolean;
+  email_provider: string;
+  email_from: string | null;
+  email_recipients: string[];
+}
+let _cfgCache: { at: number; cfg: AlertConfig } | null = null;
+async function getAlertConfig(force = false): Promise<AlertConfig> {
+  if (!force && _cfgCache && Date.now() - _cfgCache.at < 15000) return _cfgCache.cfg;
+  const { data } = await supabase.from("admin_alert_config").select("*").eq("id", 1).maybeSingle();
+  const cfg: AlertConfig = {
+    approaching_threshold: data?.approaching_threshold ?? RL_ALERT_THRESHOLD,
+    block_threshold: data?.block_threshold ?? RL_MAX_FAILURES,
+    window_minutes: data?.window_minutes ?? RL_WINDOW_MIN,
+    email_enabled: !!data?.email_enabled,
+    email_provider: data?.email_provider ?? "resend",
+    email_from: data?.email_from ?? null,
+    email_recipients: (data?.email_recipients as string[] | null) ?? [],
+  };
+  _cfgCache = { at: Date.now(), cfg };
+  return cfg;
+}
+
 // ---------- rate limit ----------
 async function isRateLimited(mahalla: string, ip: string): Promise<boolean> {
-  const since = new Date(Date.now() - RL_WINDOW_MIN * 60 * 1000).toISOString();
+  const cfg = await getAlertConfig();
+  const since = new Date(Date.now() - cfg.window_minutes * 60 * 1000).toISOString();
   const { count } = await supabase
     .from("mahalla_login_attempts")
     .select("id", { count: "exact", head: true })
@@ -126,38 +154,108 @@ async function isRateLimited(mahalla: string, ip: string): Promise<boolean> {
     .eq("ip", ip)
     .eq("success", false)
     .gte("attempted_at", since);
-  return (count ?? 0) >= RL_MAX_FAILURES;
+  return (count ?? 0) >= cfg.block_threshold;
 }
 async function logAttempt(mahalla: string | null, ip: string, success: boolean) {
   await supabase.from("mahalla_login_attempts").insert({ mahalla, ip, success });
 }
 
+// ---------- email delivery (Resend via connector gateway) ----------
+async function sendEmail(recipient: string, subject: string, html: string): Promise<{ id?: string; error?: string }> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+  if (!LOVABLE_API_KEY) return { error: "LOVABLE_API_KEY_missing" };
+  if (!RESEND_API_KEY) return { error: "RESEND_connector_not_linked" };
+  const cfg = await getAlertConfig();
+  const from = cfg.email_from || "Hokim AI <onboarding@resend.dev>";
+  try {
+    const res = await fetch("https://connector-gateway.lovable.dev/resend/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+        "X-Connection-Api-Key": RESEND_API_KEY,
+      },
+      body: JSON.stringify({ from, to: [recipient], subject, html }),
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      return { error: `HTTP ${res.status}: ${t.slice(0, 300)}` };
+    }
+    const j = await res.json().catch(() => ({}));
+    return { id: j?.id };
+  } catch (e) {
+    return { error: String(e).slice(0, 300) };
+  }
+}
+
 // ---------- admin alerts ----------
 async function raiseAlert(kind: string, mahalla: string | null, ip: string | null, count: number, details: string) {
+  const cfg = await getAlertConfig();
   // Dedupe: skip if same kind + mahalla + ip alert exists within the current window
-  const since = new Date(Date.now() - RL_WINDOW_MIN * 60 * 1000).toISOString();
-  let q = supabase.from("admin_alerts").select("id", { count: "exact", head: true })
+  const since = new Date(Date.now() - cfg.window_minutes * 60 * 1000).toISOString();
+  let dq = supabase.from("admin_alerts").select("id", { count: "exact", head: true })
     .eq("kind", kind).gte("created_at", since);
-  if (mahalla) q = q.eq("mahalla", mahalla); else q = q.is("mahalla", null);
-  if (ip) q = q.eq("ip", ip); else q = q.is("ip", null);
-  const { count: existing } = await q;
+  if (mahalla) dq = dq.eq("mahalla", mahalla); else dq = dq.is("mahalla", null);
+  if (ip) dq = dq.eq("ip", ip); else dq = dq.is("ip", null);
+  const { count: existing } = await dq;
   if ((existing ?? 0) > 0) return;
-  await supabase.from("admin_alerts").insert({
-    kind, mahalla, ip, count, window_minutes: RL_WINDOW_MIN, details,
+
+  const { data: inserted, error } = await supabase.from("admin_alerts").insert({
+    kind, mahalla, ip, count, window_minutes: cfg.window_minutes, details,
+  }).select("id").single();
+  if (error || !inserted) return;
+  const alertId = inserted.id as string;
+
+  // Internal delivery — always logged as delivered immediately
+  await supabase.from("admin_alert_deliveries").insert({
+    alert_id: alertId, channel: "internal", recipient: null,
+    status: "delivered", delivered_at: new Date().toISOString(),
   });
+
+  // Email deliveries (fire-and-forget)
+  if (cfg.email_enabled && cfg.email_recipients.length > 0) {
+    const subject = `[Hokim AI] ${kind === "approaching_block" ? "Bloklashga yaqin"
+                    : kind === "blocked" ? "MFY bloklandi"
+                    : kind === "rate_limited_429" ? "429 rate-limit" : kind} — ${mahalla ?? "?"}`;
+    const html = `<div style="font-family:system-ui,sans-serif;padding:16px;">
+      <h2 style="margin:0 0 8px;color:#111;">Xavfsizlik bildirishnomasi</h2>
+      <p style="margin:0 0 4px;"><b>Turi:</b> ${kind}</p>
+      <p style="margin:0 0 4px;"><b>MFY:</b> ${mahalla ?? "—"}</p>
+      <p style="margin:0 0 4px;"><b>IP:</b> ${ip ?? "—"}</p>
+      <p style="margin:0 0 4px;"><b>Xato urinishlar:</b> ${count} / ${cfg.window_minutes} daq.</p>
+      <p style="margin:8px 0 0;color:#444;">${details}</p>
+      <p style="margin:16px 0 0;font-size:12px;color:#888;">Vaqt: ${new Date().toISOString()}</p>
+    </div>`;
+    for (const to of cfg.email_recipients) {
+      // Log pending → send → update
+      const { data: del } = await supabase.from("admin_alert_deliveries").insert({
+        alert_id: alertId, channel: "email", recipient: to, status: "pending",
+      }).select("id").single();
+      const r = await sendEmail(to, subject, html);
+      await supabase.from("admin_alert_deliveries").update({
+        status: r.error ? "failed" : "delivered",
+        error: r.error ?? null,
+        provider_message_id: r.id ?? null,
+        delivered_at: r.error ? null : new Date().toISOString(),
+      }).eq("id", del!.id);
+    }
+  }
 }
 async function checkAndAlert(mahalla: string, ip: string) {
-  const since = new Date(Date.now() - RL_WINDOW_MIN * 60 * 1000).toISOString();
+  const cfg = await getAlertConfig();
+  const since = new Date(Date.now() - cfg.window_minutes * 60 * 1000).toISOString();
   const { count } = await supabase.from("mahalla_login_attempts")
     .select("id", { count: "exact", head: true })
     .eq("mahalla", mahalla).eq("ip", ip).eq("success", false).gte("attempted_at", since);
   const n = count ?? 0;
-  if (n >= RL_MAX_FAILURES) {
+  if (n >= cfg.block_threshold) {
     await raiseAlert("blocked", mahalla, ip, n, `${mahalla} / ${ip}: ${n} xato — bloklandi`);
-  } else if (n >= RL_ALERT_THRESHOLD) {
-    await raiseAlert("approaching_block", mahalla, ip, n, `${mahalla} / ${ip}: ${n}/${RL_MAX_FAILURES} xato urinish`);
+  } else if (n >= cfg.approaching_threshold) {
+    await raiseAlert("approaching_block", mahalla, ip, n, `${mahalla} / ${ip}: ${n}/${cfg.block_threshold} xato urinish`);
   }
 }
+
 
 // ---------- session (refresh token) ----------
 async function createSession(mahalla: string, ip: string, ua: string): Promise<string> {
