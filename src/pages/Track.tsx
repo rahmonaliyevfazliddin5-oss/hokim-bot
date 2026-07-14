@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Search, MapPin, Calendar, Sparkles, FileText, ExternalLink, Image as ImageIcon, Info, Clock, ArrowRight } from "lucide-react";
+import { Search, MapPin, Calendar, Sparkles, FileText, ExternalLink, Image as ImageIcon, Info, Clock, ArrowRight, Link2, ThumbsUp, ThumbsDown, ChevronDown, ChevronRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { toast } from "sonner";
 
 const CODE_RE = /^HOK-\d{8}-\d{3,5}$/i;
+const FB_KEY = (code: string) => `hokim_fb_${code}`;
 
 export default function Track() {
   const { t, lang } = useI18n();
@@ -18,6 +19,9 @@ export default function Track() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
   const [notFound, setNotFound] = useState(false);
+  const [reasonOpen, setReasonOpen] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
 
   const lookup = useCallback(async (raw: string) => {
     const c = raw.trim().toUpperCase();
@@ -30,16 +34,18 @@ export default function Track() {
     if (error) { toast.error(error.message); return; }
     if (!data?.complaint) { setNotFound(true); return; }
     setData(data.complaint);
+    setFeedback(localStorage.getItem(FB_KEY(c)));
   }, []);
 
-  // Auto-load from URL ?code=HOK-...
+  // Auto-load and support ?reason=1 flag
   useEffect(() => {
     const q = params.get("code");
+    const r = params.get("reason");
+    if (r === "0") setReasonOpen(false);
     if (q && CODE_RE.test(q)) lookup(q);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Debounced auto-lookup when user types a full valid code
   useEffect(() => {
     const c = code.trim().toUpperCase();
     if (!CODE_RE.test(c)) return;
@@ -55,6 +61,43 @@ export default function Track() {
     if (!code.trim()) return;
     setParams({ code: code.trim().toUpperCase() }, { replace: true });
     await lookup(code);
+  }
+
+  async function copyDeepLink(withReason: boolean) {
+    if (!data) return;
+    const u = new URL(window.location.href);
+    u.searchParams.set("code", data.tracking_code);
+    if (withReason) u.searchParams.set("reason", "1");
+    else u.searchParams.delete("reason");
+    try {
+      await navigator.clipboard.writeText(u.toString());
+      setCopied(true);
+      toast.success(withReason ? "Havola nusxalandi (sabab paneli bilan)" : "Havola nusxalandi");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Nusxalab bo'lmadi");
+    }
+  }
+
+  async function sendFeedback(verdict: "correct" | "incorrect") {
+    if (!data) return;
+    const { data: r, error } = await supabase.functions.invoke("routing-feedback", {
+      body: { tracking_code: data.tracking_code, verdict },
+    });
+    if (error || r?.error) {
+      const msg = (r?.error as string) || error?.message;
+      if (msg === "already_submitted") {
+        toast.info("Siz allaqachon baho bergansiz");
+        setFeedback(verdict);
+        localStorage.setItem(FB_KEY(data.tracking_code), verdict);
+      } else {
+        toast.error(msg || "Xatolik");
+      }
+      return;
+    }
+    setFeedback(verdict);
+    localStorage.setItem(FB_KEY(data.tracking_code), verdict);
+    toast.success(verdict === "correct" ? "Rahmat! Bahoingiz saqlandi." : "Rahmat, biz tahlilni yaxshilaymiz.");
   }
 
   const dateFmt = (d: string) => new Date(d).toLocaleString(lang === "ru" ? "ru-RU" : "en-GB");
@@ -86,12 +129,25 @@ export default function Track() {
 
       {data && (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mt-6 glass rounded-2xl p-6 md:p-8 shadow-elegant">
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
             <div>
               <div className="text-xs uppercase tracking-wider text-muted-foreground">{t("track.details")}</div>
               <div className="font-bold text-lg font-mono">{data.tracking_code}</div>
             </div>
-            <StatusBadge status={data.status} />
+            <div className="flex items-center gap-2">
+              <StatusBadge status={data.status} />
+            </div>
+          </div>
+
+          {/* Deep-link copy actions */}
+          <div className="flex flex-wrap gap-2 mb-5">
+            <Button size="sm" variant="outline" onClick={() => copyDeepLink(false)} className="text-xs h-8">
+              {copied ? <Check className="mr-1 h-3.5 w-3.5" /> : <Link2 className="mr-1 h-3.5 w-3.5" />}
+              Havolani nusxalash
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => copyDeepLink(true)} className="text-xs h-8">
+              <Info className="mr-1 h-3.5 w-3.5" /> Sabab paneli bilan
+            </Button>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4 mb-5">
@@ -128,12 +184,16 @@ export default function Track() {
             </div>
           )}
 
-          {/* "Nega shunday yo'naltirildi?" — AI reasoning */}
           {(data.severity || data.routing_target || data.responsible_org || data.eta_days || data.ai_response) && (
-            <ReasoningPanel data={data} />
+            <ReasoningPanel
+              data={data}
+              open={reasonOpen}
+              onToggle={() => setReasonOpen(v => !v)}
+              feedback={feedback}
+              onFeedback={sendFeedback}
+            />
           )}
 
-          {/* Timeline */}
           <TimelinePanel
             createdAt={data.created_at}
             currentStatus={data.status}
@@ -163,7 +223,7 @@ function InfoBox({ icon: Icon, label, value }: any) {
   );
 }
 
-function ReasoningPanel({ data }: { data: any }) {
+function ReasoningPanel({ data, open, onToggle, feedback, onFeedback }: any) {
   const severity = data.severity as string | undefined;
   const routing = data.routing_target as string | undefined;
   const sevLabel = severity === "yuqori" ? "Yuqori" : severity === "orta" ? "O'rta" : "Oddiy";
@@ -177,7 +237,6 @@ function ReasoningPanel({ data }: { data: any }) {
     : data.eta_days <= 7 ? "3–7 kun"
     : data.eta_days <= 30 ? "7–30 kun" : "30+ kun";
 
-  // Reasoning bullets
   const reasons: string[] = [];
   if (data.category_details?.length) {
     const hits = data.category_details.flatMap((d: any) => d.hits ?? []).slice(0, 6);
@@ -194,100 +253,178 @@ function ReasoningPanel({ data }: { data: any }) {
   if (etaLabel) reasons.push(`Muammoning turi va og'irligi asosida taxminiy hal etilish muddati — ${etaLabel}.`);
 
   return (
-    <details open className="rounded-xl bg-primary/5 border border-primary/20 p-4 mb-3 group">
-      <summary className="cursor-pointer list-none flex items-center gap-2 font-semibold text-sm">
+    <div id="reason" className="rounded-xl bg-primary/5 border border-primary/20 p-4 mb-3">
+      <button onClick={onToggle} className="w-full flex items-center gap-2 font-semibold text-sm text-left">
         <Info className="h-4 w-4 text-primary" />
         Nega shunday yo'naltirildi?
-        <span className="ml-auto text-[11px] text-muted-foreground group-open:hidden">ochish</span>
-      </summary>
+        {open ? <ChevronDown className="ml-auto h-4 w-4" /> : <ChevronRight className="ml-auto h-4 w-4" />}
+      </button>
 
-      <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
-        {severity && (
-          <div className={`rounded-md border px-2.5 py-1.5 ${sevTone}`}>
-            <div className="opacity-70">Og'irlik</div>
-            <div className="font-semibold">{sevLabel}</div>
+      {open && (
+        <>
+          <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
+            {severity && (
+              <div className={`rounded-md border px-2.5 py-1.5 ${sevTone}`}>
+                <div className="opacity-70">Og'irlik</div>
+                <div className="font-semibold">{sevLabel}</div>
+              </div>
+            )}
+            {routing && (
+              <div className="rounded-md border bg-background/60 px-2.5 py-1.5">
+                <div className="text-muted-foreground">Yo'naltirildi</div>
+                <div className="font-semibold">{routeLabel}</div>
+              </div>
+            )}
+            {data.responsible_org && (
+              <div className="rounded-md border bg-background/60 px-2.5 py-1.5 col-span-2">
+                <div className="text-muted-foreground">Mas'ul tashkilot</div>
+                <div className="font-semibold">{data.responsible_org}</div>
+              </div>
+            )}
+            {etaLabel && (
+              <div className="rounded-md border bg-background/60 px-2.5 py-1.5 col-span-2">
+                <div className="text-muted-foreground">Taxminiy muddat</div>
+                <div className="font-semibold">{etaLabel}</div>
+              </div>
+            )}
           </div>
-        )}
-        {routing && (
-          <div className="rounded-md border bg-background/60 px-2.5 py-1.5">
-            <div className="text-muted-foreground">Yo'naltirildi</div>
-            <div className="font-semibold">{routeLabel}</div>
-          </div>
-        )}
-        {data.responsible_org && (
-          <div className="rounded-md border bg-background/60 px-2.5 py-1.5 col-span-2">
-            <div className="text-muted-foreground">Mas'ul tashkilot</div>
-            <div className="font-semibold">{data.responsible_org}</div>
-          </div>
-        )}
-        {etaLabel && (
-          <div className="rounded-md border bg-background/60 px-2.5 py-1.5 col-span-2">
-            <div className="text-muted-foreground">Taxminiy muddat</div>
-            <div className="font-semibold">{etaLabel}</div>
-          </div>
-        )}
-      </div>
 
-      {reasons.length > 0 && (
-        <ul className="mt-3 space-y-1.5 text-xs text-foreground/85">
-          {reasons.map((r, i) => (
-            <li key={i} className="flex gap-2"><ArrowRight className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" /><span>{r}</span></li>
-          ))}
-        </ul>
+          {reasons.length > 0 && (
+            <ul className="mt-3 space-y-1.5 text-xs text-foreground/85">
+              {reasons.map((r, i) => (
+                <li key={i} className="flex gap-2"><ArrowRight className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" /><span>{r}</span></li>
+              ))}
+            </ul>
+          )}
+
+          {data.ai_response && (
+            <div className="mt-3 rounded-md bg-accent/10 border border-accent/20 p-2.5 text-xs">
+              <div className="font-semibold text-accent mb-1 flex items-center gap-1"><Sparkles className="h-3 w-3" /> AI xulosasi</div>
+              <p>{data.ai_response}</p>
+            </div>
+          )}
+
+          {/* Feedback */}
+          <div className="mt-4 pt-3 border-t border-primary/15">
+            <div className="text-xs font-semibold mb-2">AI yo'naltirishi to'g'ri chiqdimi?</div>
+            {feedback ? (
+              <div className="text-xs text-muted-foreground">
+                Bahoingiz uchun rahmat: <span className="font-semibold text-foreground">{feedback === "correct" ? "To'g'ri" : "Noto'g'ri"}</span>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => onFeedback("correct")}>
+                  <ThumbsUp className="mr-1 h-3.5 w-3.5" /> To'g'ri
+                </Button>
+                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => onFeedback("incorrect")}>
+                  <ThumbsDown className="mr-1 h-3.5 w-3.5" /> Noto'g'ri
+                </Button>
+              </div>
+            )}
+          </div>
+        </>
       )}
-
-      {data.ai_response && (
-        <div className="mt-3 rounded-md bg-accent/10 border border-accent/20 p-2.5 text-xs">
-          <div className="font-semibold text-accent mb-1 flex items-center gap-1"><Sparkles className="h-3 w-3" /> AI xulosasi</div>
-          <p>{data.ai_response}</p>
-        </div>
-      )}
-    </details>
+    </div>
   );
 }
 
+const ACTION_LABELS: Record<string, string> = {
+  complaint_created: "Murojaat qabul qilindi",
+  status_changed: "Holat yangilandi",
+  response_sent: "Rasmiy javob yuborildi",
+  ai_classified: "AI tahlil yakunlandi",
+  routed: "Tegishli bo'limga yo'naltirildi",
+  routing_feedback: "Fuqaro bahosi",
+};
+
 function humanizeAction(action: string, details: string | null): string {
-  const map: Record<string, string> = {
-    complaint_created: "Murojaat qabul qilindi",
-    status_changed: "Holat yangilandi",
-    response_sent: "Rasmiy javob yuborildi",
-    ai_classified: "AI tahlil yakunlandi",
-    routed: "Tegishli bo'limga yo'naltirildi",
-  };
-  const base = map[action] ?? action.replace(/_/g, " ");
-  return details ? `${base} — ${details}` : base;
+  const base = ACTION_LABELS[action] ?? action.replace(/_/g, " ");
+  if (action === "routing_feedback") {
+    const v = /verdict=(\w+)/.exec(details ?? "")?.[1];
+    return `${base} — ${v === "correct" ? "to'g'ri" : "noto'g'ri"}`;
+  }
+  return details ? `${base}` : base;
 }
 
 function TimelinePanel({ createdAt, currentStatus, logs, t, dateFmt }: any) {
-  // Build ordered event list; if no logs, synthesize from created_at + current status
-  const events = logs?.length
+  const baseEvents = logs?.length
     ? logs
     : [{ action: "complaint_created", details: null, created_at: createdAt }];
 
+  const actionsInLog = useMemo(() => {
+    const s = new Set<string>();
+    baseEvents.forEach((e: any) => s.add(e.action));
+    return Array.from(s);
+  }, [baseEvents]);
+
+  const [filter, setFilter] = useState<string>("all");
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+
+  const events = filter === "all" ? baseEvents : baseEvents.filter((e: any) => e.action === filter);
+
   return (
     <div className="rounded-xl bg-secondary/40 border border-border p-4 mt-3">
-      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-        <Clock className="h-3.5 w-3.5" /> Jarayon tarixi
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+          <Clock className="h-3.5 w-3.5" /> Jarayon tarixi
+        </div>
+        <div className="flex flex-wrap gap-1">
+          <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>Barchasi</FilterChip>
+          {actionsInLog.map((a) => (
+            <FilterChip key={a} active={filter === a} onClick={() => setFilter(a)}>
+              {ACTION_LABELS[a] ?? a}
+            </FilterChip>
+          ))}
+        </div>
       </div>
       <ol className="relative border-l-2 border-border/70 pl-4 space-y-3">
         {events.map((ev: any, i: number) => {
-          const isLast = i === events.length - 1;
+          const isLast = filter === "all" && i === events.length - 1;
+          const hasDetails = !!ev.details;
+          const open = expanded[i];
           return (
             <li key={i} className="relative">
               <span className={`absolute -left-[22px] top-1 h-3 w-3 rounded-full ring-2 ring-background ${isLast ? "bg-success" : "bg-primary"}`} />
               <div className="text-xs text-muted-foreground">{dateFmt(ev.created_at)}</div>
-              <div className="text-sm font-medium">{humanizeAction(ev.action, ev.details)}</div>
+              <button
+                type="button"
+                onClick={() => hasDetails && setExpanded(s => ({ ...s, [i]: !s[i] }))}
+                className={`text-sm font-medium text-left flex items-center gap-1 ${hasDetails ? "hover:text-primary" : "cursor-default"}`}
+              >
+                {hasDetails && (open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />)}
+                {humanizeAction(ev.action, ev.details)}
+              </button>
+              {hasDetails && open && (
+                <div className="mt-1 ml-4 rounded-md bg-background/70 border border-border/60 p-2 text-xs text-muted-foreground whitespace-pre-wrap break-words">
+                  {ev.details}
+                </div>
+              )}
             </li>
           );
         })}
-        <li className="relative">
-          <span className="absolute -left-[22px] top-1 h-3 w-3 rounded-full ring-2 ring-background bg-accent" />
-          <div className="text-xs text-muted-foreground">Joriy holat</div>
-          <div className="text-sm font-medium">
-            <StatusBadge status={currentStatus} />
-          </div>
-        </li>
+        {filter === "all" && (
+          <li className="relative">
+            <span className="absolute -left-[22px] top-1 h-3 w-3 rounded-full ring-2 ring-background bg-accent" />
+            <div className="text-xs text-muted-foreground">Joriy holat</div>
+            <div className="text-sm font-medium">
+              <StatusBadge status={currentStatus} />
+            </div>
+          </li>
+        )}
       </ol>
     </div>
+  );
+}
+
+function FilterChip({ active, onClick, children }: any) {
+  return (
+    <button
+      onClick={onClick}
+      className={`text-[10px] px-2 py-1 rounded-full border transition-smooth ${
+        active ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-secondary"
+      }`}
+    >
+      {children}
+    </button>
   );
 }

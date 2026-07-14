@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { FileText, Clock, CheckCircle2, XCircle, Inbox, Eye, MapPin, ExternalLink, Sparkles } from "lucide-react";
+import { FileText, Clock, CheckCircle2, XCircle, Inbox, Eye, MapPin, ExternalLink, Sparkles, Download, FileDown, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useI18n } from "@/i18n/I18nProvider";
 import { adminCall } from "@/lib/adminApi";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -30,6 +30,7 @@ export default function AdminDashboard() {
   const [open, setOpen] = useState<any | null>(null);
   const [newStatus, setNewStatus] = useState("");
   const [notes, setNotes] = useState("");
+  const [fbStats, setFbStats] = useState<{ correct: number; incorrect: number; total: number; accuracy: number | null } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -41,7 +42,13 @@ export default function AdminDashboard() {
     }
     setLoading(false);
   }
-  useEffect(() => { load(); }, []);
+  async function loadFeedback() {
+    try {
+      const s = await adminCall<any>("routing_feedback_stats");
+      setFbStats(s);
+    } catch { /* ignore */ }
+  }
+  useEffect(() => { load(); loadFeedback(); }, []);
 
   const counts = {
     total: items.length,
@@ -76,6 +83,85 @@ export default function AdminDashboard() {
   const activeFilters = [fStatus, fCat, fSev, fRoute, fMahalla, fOrg].filter(v => v !== "all").length + (search ? 1 : 0);
   function resetFilters() {
     setSearch(""); setFStatus("all"); setFCat("all"); setFSev("all"); setFRoute("all"); setFMahalla("all"); setFOrg("all");
+  }
+
+  function filterSummary(): string {
+    const bits: string[] = [];
+    if (search) bits.push(`q="${search}"`);
+    if (fStatus !== "all") bits.push(`holat=${fStatus}`);
+    if (fCat !== "all") bits.push(`kategoriya=${fCat}`);
+    if (fSev !== "all") bits.push(`og'irlik=${fSev}`);
+    if (fRoute !== "all") bits.push(`yo'nalish=${fRoute}`);
+    if (fMahalla !== "all") bits.push(`MFY=${fMahalla}`);
+    if (fOrg !== "all") bits.push(`org=${fOrg}`);
+    return bits.length ? bits.join(" · ") : "Filtr yo'q";
+  }
+
+  function buildFilename(ext: string) {
+    const d = new Date().toISOString().slice(0, 10);
+    const parts = ["hokim-murojaatlar", d];
+    if (fStatus !== "all") parts.push(fStatus);
+    if (fMahalla !== "all") parts.push(fMahalla.replace(/\s+/g, "_"));
+    return parts.join("_") + "." + ext;
+  }
+
+  function exportCSV() {
+    if (filtered.length === 0) { toast.error("Eksport uchun ma'lumot yo'q"); return; }
+    const header = ["tracking_code", "created_at", "status", "severity", "routing_target", "responsible_org", "categories", "mahalla", "district", "citizen_name", "citizen_phone", "location", "eta_days", "text", "admin_notes"];
+    const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""').replace(/\n/g, " ")}"`;
+    const meta = `# Hokim AI murojaatlar eksport\n# Vaqt: ${new Date().toISOString()}\n# ${filterSummary()}\n# Yozuvlar: ${filtered.length}\n`;
+    const lines = [header.join(",")];
+    for (const r of filtered) {
+      lines.push([
+        r.tracking_code, r.created_at, r.status, r.severity, r.routing_target, r.responsible_org,
+        (r.categories?.length ? r.categories : [r.category]).join("; "),
+        r.mahalla, r.district, r.citizen_name, r.citizen_phone, r.location, r.eta_days, r.text, r.admin_notes,
+      ].map(esc).join(","));
+    }
+    const blob = new Blob(["\uFEFF" + meta + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = buildFilename("csv");
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    toast.success(`${filtered.length} yozuv CSV ga eksport qilindi`);
+  }
+
+  function exportPDF() {
+    if (filtered.length === 0) { toast.error("Eksport uchun ma'lumot yo'q"); return; }
+    const win = window.open("", "_blank");
+    if (!win) { toast.error("Popup bloklangan"); return; }
+    const esc = (v: any) => String(v ?? "").replace(/[&<>]/g, c => c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;");
+    const filename = buildFilename("pdf");
+    const rowsHtml = filtered.map(r => `<tr>
+      <td>${esc(r.tracking_code)}</td>
+      <td>${esc(dateFmt(r.created_at))}</td>
+      <td>${esc(r.status)}</td>
+      <td>${esc(r.severity ?? "—")}</td>
+      <td>${esc(r.routing_target ?? "—")}</td>
+      <td>${esc(r.mahalla ?? "—")}</td>
+      <td>${esc(r.responsible_org ?? "—")}</td>
+      <td>${esc(r.citizen_name)}<br/><small>${esc(r.citizen_phone ?? "")}</small></td>
+      <td>${esc((r.text ?? "").slice(0, 200))}</td>
+    </tr>`).join("");
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"/><title>${esc(filename)}</title>
+<style>body{font-family:-apple-system,sans-serif;padding:24px;color:#111}h1{font-size:18px;margin:0 0 4px}
+.meta{color:#666;font-size:12px;margin-bottom:6px}
+.filters{color:#333;font-size:12px;margin-bottom:16px;padding:6px 10px;background:#f5f7fa;border-left:3px solid #3b82f6}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th,td{border:1px solid #ddd;padding:6px 8px;text-align:left;vertical-align:top}
+th{background:#f5f5f5;text-transform:uppercase;font-size:10px}
+tr:nth-child(even) td{background:#fafafa}
+@media print{.noprint{display:none}}</style></head><body>
+<h1>Hokim AI — Murojaatlar ro'yxati</h1>
+<div class="meta">Eksport: ${new Date().toLocaleString()} · Yozuvlar: ${filtered.length}</div>
+<div class="filters"><b>Filtr:</b> ${esc(filterSummary())}</div>
+<button class="noprint" onclick="window.print()">PDF sifatida saqlash / Chop etish</button>
+<table><thead><tr><th>Kod</th><th>Vaqt</th><th>Holat</th><th>Og'irlik</th><th>Yo'nalish</th><th>MFY</th><th>Mas'ul</th><th>Fuqaro</th><th>Matn</th></tr></thead>
+<tbody>${rowsHtml}</tbody></table>
+<script>setTimeout(function(){document.title=${JSON.stringify(filename)};window.print();},300);</script>
+</body></html>`);
+    win.document.close();
   }
 
   function openItem(it: any) {
@@ -121,6 +207,28 @@ export default function AdminDashboard() {
         ))}
       </div>
 
+      {fbStats && fbStats.total > 0 && (
+        <div className="glass rounded-2xl p-4 mb-4 flex flex-wrap items-center gap-4">
+          <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">AI yo'naltirish bahosi</div>
+          <div className="flex items-center gap-1.5 text-sm">
+            <ThumbsUp className="h-4 w-4 text-success" />
+            <span className="font-bold">{fbStats.correct}</span>
+            <span className="text-muted-foreground text-xs">to'g'ri</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-sm">
+            <ThumbsDown className="h-4 w-4 text-destructive" />
+            <span className="font-bold">{fbStats.incorrect}</span>
+            <span className="text-muted-foreground text-xs">noto'g'ri</span>
+          </div>
+          <div className="text-sm">
+            <span className="text-muted-foreground text-xs">Aniqlik: </span>
+            <span className="font-bold text-primary">{fbStats.accuracy != null ? Math.round(fbStats.accuracy * 100) + "%" : "—"}</span>
+          </div>
+          <div className="text-xs text-muted-foreground ml-auto">Jami: {fbStats.total}</div>
+        </div>
+      )}
+
+
       <div className="glass rounded-2xl p-4 md:p-5 mb-4 space-y-3">
         <div className="flex flex-wrap gap-2 items-center">
           <Input
@@ -137,6 +245,12 @@ export default function AdminDashboard() {
               Filtrlarni tozalash ({activeFilters})
             </Button>
           )}
+          <Button size="sm" variant="outline" onClick={exportCSV} className="text-xs">
+            <Download className="mr-1 h-3.5 w-3.5" /> CSV
+          </Button>
+          <Button size="sm" variant="outline" onClick={exportPDF} className="text-xs">
+            <FileDown className="mr-1 h-3.5 w-3.5" /> PDF
+          </Button>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
           <FilterSelect label="Holat" value={fStatus} setValue={setFStatus} options={STATUSES.map(s => ({ v: s, l: t(`status.${s}`) }))} />
