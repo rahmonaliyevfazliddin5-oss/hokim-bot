@@ -262,6 +262,87 @@ tr:nth-child(even) td{background:#fafafa}
         </div>
       )}
 
+      {kpi && (
+        <div className="glass rounded-2xl p-4 md:p-5 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">SLA / KPI</div>
+            <div className="text-xs text-muted-foreground ml-auto">Umumiy: {kpi.total} · Hal: {kpi.resolved} · Ochiq: {kpi.openTotal}</div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+            <div className="rounded-xl bg-secondary/60 p-3">
+              <div className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Muddatida hal</div>
+              <div className="text-2xl font-extrabold text-success">
+                {kpi.onTimeRate != null ? Math.round(kpi.onTimeRate * 100) + "%" : "—"}
+              </div>
+              <div className="text-[10px] text-muted-foreground">{kpi.resolvedOnTime}/{kpi.resolved}</div>
+            </div>
+            <div className="rounded-xl bg-secondary/60 p-3">
+              <div className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Timer className="h-3 w-3" /> Kechikkanlar</div>
+              <div className="text-2xl font-extrabold text-warning-foreground">{kpi.resolvedLate}</div>
+              <div className="text-[10px] text-muted-foreground">Hal qilinganlardan</div>
+            </div>
+            <div className="rounded-xl bg-secondary/60 p-3">
+              <div className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Ochiq muddati o'tgan</div>
+              <div className="text-2xl font-extrabold text-destructive">{kpi.openOverdue}</div>
+              <div className="text-[10px] text-muted-foreground">/{kpi.openTotal} ochiq</div>
+            </div>
+            <div className="rounded-xl bg-secondary/60 p-3">
+              <div className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><ShieldAlert className="h-3 w-3" /> Eskalatsiya</div>
+              <div className="text-2xl font-extrabold text-primary">{kpi.escalatedTotal}</div>
+              <div className="text-[10px] text-muted-foreground">Jami yozuvlar</div>
+            </div>
+          </div>
+
+          {kpi.delayBuckets && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div>
+                <div className="text-[11px] uppercase text-muted-foreground mb-2">ETA kechikish taqsimoti</div>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={[
+                    { name: "Muddatida", v: kpi.delayBuckets.on_time, fill: "hsl(var(--success))" },
+                    { name: "0–3 kun", v: kpi.delayBuckets["0_3"], fill: "hsl(var(--warning))" },
+                    { name: "3–7 kun", v: kpi.delayBuckets["3_7"], fill: "hsl(var(--warning))" },
+                    { name: "7–14 kun", v: kpi.delayBuckets["7_14"], fill: "hsl(var(--destructive))" },
+                    { name: "14–30 kun", v: kpi.delayBuckets["14_30"], fill: "hsl(var(--destructive))" },
+                    { name: "30+", v: kpi.delayBuckets["30_plus"], fill: "hsl(var(--destructive))" },
+                  ]}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="v" radius={[4, 4, 0, 0]}>
+                      {["#22c55e", "#f59e0b", "#f59e0b", "#ef4444", "#ef4444", "#ef4444"].map((c, i) => (
+                        <Cell key={i} fill={c} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              {Array.isArray(kpi.trend) && kpi.trend.length > 0 && (
+                <div>
+                  <div className="text-[11px] uppercase text-muted-foreground mb-2">30 kunlik trend</div>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <LineChart data={kpi.trend}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                      <XAxis dataKey="date" tick={{ fontSize: 9 }} />
+                      <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                      <Tooltip />
+                      <Legend wrapperStyle={{ fontSize: 10 }} />
+                      <Line type="monotone" dataKey="created" name="Kelgan" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="resolved" name="Hal" stroke="hsl(var(--success))" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="escalated" name="Eskal." stroke="hsl(var(--destructive))" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+
+
 
       <div className="glass rounded-2xl p-4 md:p-5 mb-4 space-y-3">
         <div className="flex flex-wrap gap-2 items-center">
