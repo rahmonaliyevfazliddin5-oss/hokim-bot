@@ -72,16 +72,32 @@ export default function AdminMahallaPasswords() {
 
   const dateFmt = (d: string) => new Date(d).toLocaleString("en-GB");
 
+  async function bulkResetAll() {
+    if (!confirm("BARCHA MFY parollarini standart (mahallanomi123) holatga qaytarish? Barcha faol sessiyalar ham bekor qilinadi.")) return;
+    setBusy(true);
+    try {
+      const res = await adminCall<{ reset: number; failed: string[] }>("admin_reset_all_mahalla_passwords");
+      toast.success(`${res.reset} ta MFY paroli tiklandi${res.failed?.length ? `, ${res.failed.length} ta xato` : ""}`);
+      load();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+    setBusy(false);
+  }
+
   return (
     <div className="max-w-5xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
         <div className="h-11 w-11 rounded-xl gradient-accent flex items-center justify-center">
           <KeyRound className="h-6 w-6 text-accent-foreground" />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="text-3xl font-extrabold">Mahalla parollari</h1>
           <p className="text-sm text-muted-foreground">Bcrypt bilan hashlangan. Boshlang'ich: mahallanomi123</p>
         </div>
+        <Button variant="destructive" disabled={busy} onClick={bulkResetAll}>
+          <AlertTriangle className="h-4 w-4 mr-1" /> Barchasini standart
+        </Button>
       </div>
 
       <div className="glass rounded-2xl p-4 mb-4 flex items-center gap-2">
