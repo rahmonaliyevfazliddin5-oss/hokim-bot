@@ -546,6 +546,61 @@ Deno.serve(async (req) => {
       return json({ ok: true, reset: ok, failed });
     }
 
+
+    // ---- Bulk revoke sessions by filters (mahalla/ip/date range) ----
+    if (action === "admin_bulk_revoke_sessions") {
+      const { mahalla, ip: ipFilter, from, to, session_ids } = params as {
+        mahalla?: string; ip?: string; from?: string; to?: string; session_ids?: string[];
+      };
+      let q = supabase.from("mahalla_sessions").update({ revoked_at: new Date().toISOString() })
+        .is("revoked_at", null)
+        .gt("expires_at", new Date().toISOString());
+      let scope = "";
+      if (Array.isArray(session_ids) && session_ids.length) {
+        q = q.in("id", session_ids.slice(0, 500));
+        scope = `ids=${session_ids.length}`;
+      } else {
+        if (typeof mahalla === "string" && mahalla) { q = q.eq("mahalla", mahalla); scope += ` mahalla=${mahalla}`; }
+        if (typeof ipFilter === "string" && ipFilter) { q = q.eq("ip", ipFilter); scope += ` ip=${ipFilter}`; }
+        if (typeof from === "string" && from) { q = q.gte("created_at", from); scope += ` from=${from}`; }
+        if (typeof to === "string" && to) { q = q.lte("created_at", to); scope += ` to=${to}`; }
+        if (!scope) return json({ error: "no_filter" }, 400);
+      }
+      const { data, error } = await q.select("id");
+      if (error) return json({ error: error.message }, 500);
+      const n = data?.length ?? 0;
+      await audit("mahalla_session_bulk_revoked", "admin", `revoked=${n}${scope}`);
+      return json({ ok: true, revoked: n });
+    }
+
+    // ---- Admin alerts ----
+    if (action === "admin_alerts_list") {
+      const { unseen_only, limit } = params as { unseen_only?: boolean; limit?: number };
+      let q = supabase.from("admin_alerts").select("*")
+        .order("created_at", { ascending: false }).limit(Math.min(limit ?? 100, 500));
+      if (unseen_only) q = q.is("seen_at", null);
+      const { data, error } = await q;
+      if (error) return json({ error: error.message }, 500);
+      const { count: unseen } = await supabase.from("admin_alerts")
+        .select("id", { count: "exact", head: true }).is("seen_at", null);
+      return json({ alerts: data ?? [], unseen: unseen ?? 0 });
+    }
+
+    if (action === "admin_alerts_mark_seen") {
+      const { ids, all } = params as { ids?: string[]; all?: boolean };
+      let q = supabase.from("admin_alerts").update({ seen_at: new Date().toISOString() }).is("seen_at", null);
+      if (all) {
+        // no additional filter
+      } else if (Array.isArray(ids) && ids.length) {
+        q = q.in("id", ids.slice(0, 500));
+      } else {
+        return json({ error: "no_target" }, 400);
+      }
+      const { error } = await q;
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
     return json({ error: "unknown_action" }, 400);
   } catch (e) {
     return json({ error: String(e) }, 500);
