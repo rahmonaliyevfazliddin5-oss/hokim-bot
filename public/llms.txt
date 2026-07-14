@@ -1,0 +1,15 @@
+# Hokim AI
+
+> Farg'ona tumani hokimligi rasmiy AI murojaatlar platformasi — fuqarolar murojaatlarini AI orqali tahlil qilib, tegishli mahalla yoki tashkilotga yo'naltiradi.
+
+Hokim AI — Farg'ona tumanidagi 71 ta MFY hududini qamrab oluvchi ochiq murojaatlar tizimi. Fuqaro murojaat yuboradi, AI muammoni klassifikatsiya qiladi (gaz, svet, suv, yo'l, ta'lim, sog'liq va boshqalar), og'irlik darajasi va taxminiy muddatni belgilaydi, so'ng mas'ul tashkilotga yo'naltiradi. Har bir murojaat `HOK-YYYYMMDD-NNNN` kodi orqali kuzatiladi.
+
+## Sahifalar
+- [Bosh sahifa](/): Platforma tavsifi, xizmatlar va aloqa ma'lumotlari.
+- [Murojaat yuborish](/submit): AI yordamida to'ldirish, MFY tanlash, rasm va joylashuv qo'shish.
+- [Murojaatni tekshirish](/track): Kod bo'yicha status, AI tahlili va javoblarni ko'rish.
+- [AI yordamchi](/chat): Bo'lim avatarlari bilan interaktiv suhbat (gaz, svet, ta'lim va h.k.).
+
+## Optional
+- [robots.txt](/robots.txt)
+- [sitemap.xml](/sitemap.xml)
