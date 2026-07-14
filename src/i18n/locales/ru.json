@@ -129,7 +129,7 @@
     "view_map": "На карте",
     "ai_keywords": "Найденные ключевые слова"
   },
-  "status": { "yangi": "Новое", "jarayonda": "В процессе", "bajarildi": "Решено", "rad_etildi": "Отклонено" },
+  "status": { "yangi": "Новое", "qabul_qilindi": "Принято", "ai_tahlil": "AI-анализ", "mahallaga_yuborildi": "Направлено в МФЙ", "hokimiyatga_yuborildi": "Направлено в хокимият", "korib_chiqilmoqda": "На рассмотрении", "jarayonda": "В процессе", "hal_qilindi": "Решено", "bajarildi": "Решено", "rad_etildi": "Отклонено" },
   "category": { "gaz": "Газ", "elektr": "Электричество", "suv": "Вода", "chiqindi": "Мусор", "yo_l": "Дороги", "boshqa": "Прочее" },
   "regions": { "fargona": "Ферганский район" },
   "footer": "© 2026 Хокимият Ферганского района — Hokim AI"
