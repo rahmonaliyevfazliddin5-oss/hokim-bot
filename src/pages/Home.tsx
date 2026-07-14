@@ -46,7 +46,8 @@ export default function Home() {
       </section>
 
       {/* Features */}
-      <section className="grid md:grid-cols-3 gap-5 mt-8">
+      <section className="grid md:grid-cols-3 gap-5 mt-8" aria-labelledby="features-heading">
+        <h2 id="features-heading" className="sr-only">{t("hero.features_heading") || "Platforma imkoniyatlari"}</h2>
         {features.map((f, i) => (
           <motion.div key={f.title} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 * i }}
             className="glass rounded-2xl p-6 transition-smooth hover:-translate-y-0.5 hover:shadow-elegant">
