@@ -305,9 +305,6 @@ function ReasoningPanel({ data, open, onToggle, feedback, onFeedback }: any) {
             {feedback ? (
               <div className="text-xs text-muted-foreground">
                 Bahoingiz uchun rahmat: <span className="font-semibold text-foreground">{feedback === "correct" ? "To'g'ri" : "Noto'g'ri"}</span>
-                <button
-                  onClick={() => { localStorage.removeItem(FB_KEY(data.tracking_code)); onFeedback.__setFb?.(null); }}
-                  className="ml-2 underline hover:text-primary">o'zgartirish</button>
               </div>
             ) : (
               <FeedbackForm onSubmit={onFeedback} />
