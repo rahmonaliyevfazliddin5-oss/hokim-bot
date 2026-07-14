@@ -109,7 +109,8 @@ Deno.serve(async (req) => {
         });
       }
       const txt = await resp.text();
-      return new Response(JSON.stringify({ error: txt }), {
+      console.error("ai_gateway_error:", resp.status, txt);
+      return new Response(JSON.stringify({ error: "upstream_error" }), {
         status: resp.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -122,7 +123,8 @@ Deno.serve(async (req) => {
       },
     });
   } catch (e) {
-    return new Response(JSON.stringify({ error: String(e) }), {
+    console.error("ai-chat unhandled:", e);
+    return new Response(JSON.stringify({ error: "internal_error" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

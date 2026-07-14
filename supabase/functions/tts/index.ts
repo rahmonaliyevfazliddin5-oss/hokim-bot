@@ -43,7 +43,8 @@ Deno.serve(async (req) => {
     );
     if (!r.ok) {
       const err = await r.text();
-      return new Response(JSON.stringify({ error: err || `TTS ${r.status}` }), {
+      console.error("tts_upstream_error:", r.status, err);
+      return new Response(JSON.stringify({ error: "tts_upstream_error" }), {
         status: r.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -52,7 +53,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "audio/mpeg", "Cache-Control": "public, max-age=86400" },
     });
   } catch (e) {
-    return new Response(JSON.stringify({ error: String(e?.message || e) }), {
+    console.error("tts unhandled:", e);
+    return new Response(JSON.stringify({ error: "internal_error" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
