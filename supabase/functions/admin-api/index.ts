@@ -388,10 +388,131 @@ Deno.serve(async (req) => {
     }
 
     if (action === "admin_recent_login_attempts") {
-      const { data, error } = await supabase.from("mahalla_login_attempts")
-        .select("*").order("attempted_at", { ascending: false }).limit(100);
+      const { mahalla, limit } = params as { mahalla?: string; limit?: number };
+      let q = supabase.from("mahalla_login_attempts").select("*")
+        .order("attempted_at", { ascending: false }).limit(Math.min(limit ?? 200, 500));
+      if (typeof mahalla === "string" && mahalla) q = q.eq("mahalla", mahalla);
+      const { data, error } = await q;
       if (error) return json({ error: error.message }, 500);
       return json({ attempts: data ?? [] });
+    }
+
+    // ---- Sessions: list + revoke ----
+    if (action === "admin_list_mahalla_sessions") {
+      const { mahalla, active_only } = params as { mahalla?: string; active_only?: boolean };
+      let q = supabase.from("mahalla_sessions")
+        .select("id, mahalla, ip, user_agent, created_at, expires_at, revoked_at")
+        .order("created_at", { ascending: false }).limit(500);
+      if (typeof mahalla === "string" && mahalla) q = q.eq("mahalla", mahalla);
+      if (active_only) q = q.is("revoked_at", null).gt("expires_at", new Date().toISOString());
+      const { data, error } = await q;
+      if (error) return json({ error: error.message }, 500);
+      return json({ sessions: data ?? [] });
+    }
+
+    if (action === "admin_revoke_mahalla_session") {
+      const { session_id } = params as { session_id?: string };
+      if (typeof session_id !== "string" || !session_id) return json({ error: "session_id_required" }, 400);
+      const { data: sess } = await supabase.from("mahalla_sessions")
+        .select("mahalla, revoked_at").eq("id", session_id).maybeSingle();
+      if (!sess) return json({ error: "not_found" }, 404);
+      if (!sess.revoked_at) {
+        await supabase.from("mahalla_sessions")
+          .update({ revoked_at: new Date().toISOString() }).eq("id", session_id);
+        await audit("mahalla_session_revoked", "admin", `mahalla=${sess.mahalla} sid=${session_id.slice(0, 8)}`);
+      }
+      return json({ ok: true });
+    }
+
+    // ---- Audit / mahalla login logs (filter + search) ----
+    if (action === "admin_mahalla_audit") {
+      const { q, mahalla, actions, from, to, limit } = params as {
+        q?: string; mahalla?: string; actions?: string[]; from?: string; to?: string; limit?: number;
+      };
+      const defaultActions = [
+        "mahalla_login_success", "mahalla_login_failed", "mahalla_login_blocked",
+        "mahalla_password_reset", "mahalla_session_revoked",
+        "status_changed", "response_sent",
+      ];
+      const acts = Array.isArray(actions) && actions.length ? actions : defaultActions;
+      let query = supabase.from("activity_logs").select("*")
+        .in("action", acts)
+        .order("created_at", { ascending: false })
+        .limit(Math.min(limit ?? 300, 1000));
+      if (typeof from === "string" && from) query = query.gte("created_at", from);
+      if (typeof to === "string" && to) query = query.lte("created_at", to);
+      if (typeof mahalla === "string" && mahalla) {
+        query = query.or(`actor.ilike.%${mahalla}%,details.ilike.%${mahalla}%`);
+      }
+      if (typeof q === "string" && q) {
+        const s = q.replace(/[%,]/g, "");
+        query = query.or(`details.ilike.%${s}%,actor.ilike.%${s}%,action.ilike.%${s}%`);
+      }
+      const { data, error } = await query;
+      if (error) return json({ error: error.message }, 500);
+      return json({ logs: data ?? [] });
+    }
+
+    // ---- Per-mahalla login stats ----
+    if (action === "admin_mahalla_login_stats") {
+      const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const sinceWindow = new Date(Date.now() - RL_WINDOW_MIN * 60 * 1000).toISOString();
+      const { data: attempts, error } = await supabase.from("mahalla_login_attempts")
+        .select("mahalla, ip, success, attempted_at")
+        .gte("attempted_at", since24h)
+        .order("attempted_at", { ascending: false })
+        .limit(5000);
+      if (error) return json({ error: error.message }, 500);
+
+      const stats = new Map<string, {
+        mahalla: string; total: number; success: number; failed: number;
+        failed_window: number; last_attempt: string | null; last_success: string | null;
+        blocked_ips: string[];
+      }>();
+      const ipFailByMahalla = new Map<string, Map<string, number>>();
+
+      for (const a of attempts ?? []) {
+        if (!a.mahalla) continue;
+        let s = stats.get(a.mahalla);
+        if (!s) {
+          s = { mahalla: a.mahalla, total: 0, success: 0, failed: 0, failed_window: 0,
+                last_attempt: null, last_success: null, blocked_ips: [] };
+          stats.set(a.mahalla, s);
+        }
+        s.total++;
+        if (a.success) { s.success++; if (!s.last_success) s.last_success = a.attempted_at; }
+        else {
+          s.failed++;
+          if (a.attempted_at >= sinceWindow) {
+            s.failed_window++;
+            let ipMap = ipFailByMahalla.get(a.mahalla);
+            if (!ipMap) { ipMap = new Map(); ipFailByMahalla.set(a.mahalla, ipMap); }
+            ipMap.set(a.ip, (ipMap.get(a.ip) ?? 0) + 1);
+          }
+        }
+        if (!s.last_attempt) s.last_attempt = a.attempted_at;
+      }
+      for (const [m, ipMap] of ipFailByMahalla) {
+        const s = stats.get(m); if (!s) continue;
+        for (const [ip, n] of ipMap) if (n >= RL_MAX_FAILURES) s.blocked_ips.push(ip);
+      }
+      const rows = Array.from(stats.values()).sort((a, b) => b.failed_window - a.failed_window || b.total - a.total);
+      return json({ stats: rows, window_minutes: RL_WINDOW_MIN, threshold: RL_MAX_FAILURES });
+    }
+
+    // ---- Bulk reset all mahalla passwords to default ----
+    if (action === "admin_reset_all_mahalla_passwords") {
+      const { data: list, error: e0 } = await supabase.from("mahalla_credentials").select("mahalla");
+      if (e0) return json({ error: e0.message }, 500);
+      let ok = 0; const failed: string[] = [];
+      for (const row of list ?? []) {
+        try { await setMahallaPassword(row.mahalla, defaultPasswordFor(row.mahalla), "admin"); ok++; }
+        catch { failed.push(row.mahalla); }
+      }
+      await supabase.from("mahalla_sessions")
+        .update({ revoked_at: new Date().toISOString() }).is("revoked_at", null);
+      await audit("mahalla_password_bulk_reset", "admin", `reset=${ok} failed=${failed.length}`);
+      return json({ ok: true, reset: ok, failed });
     }
 
     return json({ error: "unknown_action" }, 400);
