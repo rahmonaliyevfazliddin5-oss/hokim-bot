@@ -49,6 +49,89 @@ export type Database = {
           },
         ]
       }
+      admin_alert_config: {
+        Row: {
+          approaching_threshold: number
+          block_threshold: number
+          email_enabled: boolean
+          email_from: string | null
+          email_provider: string
+          email_recipients: string[]
+          id: number
+          updated_at: string
+          updated_by: string | null
+          window_minutes: number
+        }
+        Insert: {
+          approaching_threshold?: number
+          block_threshold?: number
+          email_enabled?: boolean
+          email_from?: string | null
+          email_provider?: string
+          email_recipients?: string[]
+          id?: number
+          updated_at?: string
+          updated_by?: string | null
+          window_minutes?: number
+        }
+        Update: {
+          approaching_threshold?: number
+          block_threshold?: number
+          email_enabled?: boolean
+          email_from?: string | null
+          email_provider?: string
+          email_recipients?: string[]
+          id?: number
+          updated_at?: string
+          updated_by?: string | null
+          window_minutes?: number
+        }
+        Relationships: []
+      }
+      admin_alert_deliveries: {
+        Row: {
+          alert_id: string
+          channel: string
+          created_at: string
+          delivered_at: string | null
+          error: string | null
+          id: string
+          provider_message_id: string | null
+          recipient: string | null
+          status: string
+        }
+        Insert: {
+          alert_id: string
+          channel: string
+          created_at?: string
+          delivered_at?: string | null
+          error?: string | null
+          id?: string
+          provider_message_id?: string | null
+          recipient?: string | null
+          status: string
+        }
+        Update: {
+          alert_id?: string
+          channel?: string
+          created_at?: string
+          delivered_at?: string | null
+          error?: string | null
+          id?: string
+          provider_message_id?: string | null
+          recipient?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_alert_deliveries_alert_id_fkey"
+            columns: ["alert_id"]
+            isOneToOne: false
+            referencedRelation: "admin_alerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_alerts: {
         Row: {
           count: number
