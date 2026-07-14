@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
-const STATUSES = ["yangi", "jarayonda", "bajarildi", "rad_etildi"];
+const STATUSES = ["qabul_qilindi", "ai_tahlil", "mahallaga_yuborildi", "hokimiyatga_yuborildi", "korib_chiqilmoqda", "jarayonda", "hal_qilindi", "rad_etildi"];
 const CATS = ["gaz", "elektr", "suv", "chiqindi", "yo_l", "boshqa"];
 
 export default function AdminDashboard() {
