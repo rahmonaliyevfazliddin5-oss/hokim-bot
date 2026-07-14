@@ -50,6 +50,7 @@ const App = () => (
                   <Route path="/admin/logs" element={<AdminGuard><AdminLogs /></AdminGuard>} />
                   <Route path="/admin/mahalla-passwords" element={<AdminGuard><AdminMahallaPasswords /></AdminGuard>} />
                   <Route path="/admin/mahalla-security" element={<AdminGuard><AdminMahallaSecurity /></AdminGuard>} />
+                  <Route path="/admin/escalation-rules" element={<AdminGuard><AdminEscalationRules /></AdminGuard>} />
                   <Route path="/mahalla" element={<Navigate to="/mahalla/dashboard" replace />} />
                   <Route path="/mahalla/login" element={<MahallaLogin />} />
                   <Route path="/mahalla/dashboard" element={<MahallaGuard><MahallaDashboard /></MahallaGuard>} />
