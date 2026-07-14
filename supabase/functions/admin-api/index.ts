@@ -252,6 +252,7 @@ Deno.serve(async (req) => {
       }
       if (await isRateLimited(mahalla, ip)) {
         await audit("mahalla_login_blocked", `ip:${ip}`, `mahalla=${mahalla} (rate-limited)`);
+        await raiseAlert("rate_limited_429", mahalla, ip, RL_MAX_FAILURES, `${mahalla} / ${ip}: 429 rate-limited`);
         return json({ error: "too_many_attempts", retry_after_minutes: RL_WINDOW_MIN }, 429);
       }
       const ok = await verifyMahallaPassword(mahalla, password);
@@ -259,6 +260,7 @@ Deno.serve(async (req) => {
       if (!ok) {
         await new Promise((r) => setTimeout(r, 400));
         await audit("mahalla_login_failed", `ip:${ip}`, `mahalla=${mahalla}`);
+        await checkAndAlert(mahalla, ip);
         return json({ error: "invalid_credentials" }, 401);
       }
       const refresh = await createSession(mahalla, ip, ua);
