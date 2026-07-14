@@ -25,9 +25,21 @@ export default function AdminStats() {
     name: t(`status.${s}`), value: items.filter(i => i.status === s).length,
   }));
 
-  const districts = Array.from(new Set(items.map(i => i.district).filter(Boolean))) as string[];
-  const byDistrict = districts.map(d => ({ name: d, value: items.filter(i => i.district === d).length }))
-    .sort((a, b) => b.value - a.value).slice(0, 10);
+  const byMahalla = useMemo(() => {
+    const rows = FARGONA_TUMAN_MAHALLAS.map(name => ({
+      name,
+      value: items.filter(i => (i.mahalla || "").trim() === name).length,
+    }));
+    const maxVal = Math.max(0, ...rows.map(r => r.value));
+    const colorFor = (v: number) => {
+      if (v === 0) return "hsl(152 60% 42%)"; // green
+      if (maxVal > 0 && v >= maxVal * 0.66) return "hsl(0 75% 52%)"; // red
+      return "hsl(38 92% 50%)"; // yellow
+    };
+    return rows
+      .map(r => ({ ...r, fill: colorFor(r.value) }))
+      .sort((a, b) => b.value - a.value);
+  }, [items]);
 
   const days = Array.from({ length: 7 }).map((_, i) => {
     const d = new Date(); d.setDate(d.getDate() - (6 - i));
