@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { Home, FilePlus, Search, LayoutDashboard, BarChart3, Users, ScrollText, LogOut, MessageSquare, KeyRound } from "lucide-react";
+import { Home, FilePlus, Search, LayoutDashboard, BarChart3, Users, ScrollText, LogOut, MessageSquare, KeyRound, ShieldCheck } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, useSidebar
@@ -29,6 +29,7 @@ export function AppSidebar() {
     { url: "/admin/users", icon: Users, label: t("nav.users") },
     { url: "/admin/logs", icon: ScrollText, label: t("nav.logs") },
     { url: "/admin/mahalla-passwords", icon: KeyRound, label: "Mahalla parollari" },
+    { url: "/admin/mahalla-security", icon: ShieldCheck, label: "Mahalla xavfsizlik" },
   ];
 
   const linkCls = (active: boolean) => cn("flex items-center gap-3 w-full", active && "font-semibold");
