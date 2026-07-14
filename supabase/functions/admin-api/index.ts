@@ -119,13 +119,17 @@ Deno.serve(async (req) => {
     }
 
     // ---- Public action: mahalla login ----
+    // Password rule: slug(mahalla) + "123" where slug lowercases the name and strips all non-alphanumerics.
     if (action === "mahalla_login") {
       const { mahalla, password } = params;
+      const slug = typeof mahalla === "string" ? mahalla.toLowerCase().replace(/[^a-z0-9а-яёқғҳўʻ']/gi, "") : "";
+      const expected = slug + "123";
       const okUser =
         typeof mahalla === "string" &&
         mahalla.length > 0 &&
         typeof password === "string" &&
-        password === ADMIN_PASSWORD;
+        slug.length > 0 &&
+        password.toLowerCase() === expected;
       if (!okUser) {
         await new Promise((r) => setTimeout(r, 400));
         return json({ error: "invalid_credentials" }, 401);
