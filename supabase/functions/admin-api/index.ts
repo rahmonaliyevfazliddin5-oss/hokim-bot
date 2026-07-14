@@ -34,8 +34,8 @@ async function hmac(data: string): Promise<Uint8Array> {
   return new Uint8Array(sig);
 }
 
-async function makeToken(): Promise<string> {
-  const payload = { sub: "admin", exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS };
+async function makeToken(extra: Record<string, unknown> = { sub: "admin" }): Promise<string> {
+  const payload = { ...extra, exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS };
   const body = b64url(enc.encode(JSON.stringify(payload)));
   const sig = b64url(await hmac(body));
   return `${body}.${sig}`;
@@ -48,21 +48,25 @@ function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
   return diff === 0;
 }
 
-async function verifyToken(token: string | null): Promise<boolean> {
-  if (!token) return false;
+async function verifyTokenPayload(token: string | null): Promise<any | null> {
+  if (!token) return null;
   const parts = token.split(".");
-  if (parts.length !== 2) return false;
+  if (parts.length !== 2) return null;
   const [body, sig] = parts;
   const expected = await hmac(body);
-  if (!timingSafeEqual(b64urlToBytes(sig), expected)) return false;
+  if (!timingSafeEqual(b64urlToBytes(sig), expected)) return null;
   try {
     const payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(body)));
-    if (payload.sub !== "admin") return false;
-    if (typeof payload.exp !== "number" || payload.exp < Math.floor(Date.now() / 1000)) return false;
-    return true;
+    if (typeof payload.exp !== "number" || payload.exp < Math.floor(Date.now() / 1000)) return null;
+    return payload;
   } catch {
-    return false;
+    return null;
   }
+}
+
+async function verifyToken(token: string | null): Promise<boolean> {
+  const p = await verifyTokenPayload(token);
+  return !!p && p.sub === "admin";
 }
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, {
