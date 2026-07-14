@@ -305,7 +305,7 @@ function SpeakingAvatar({
           onClick={e => e.stopPropagation()}
           className="w-full max-w-md glass rounded-3xl p-5 shadow-2xl border border-border/60 relative"
         >
-          <button onClick={() => { stop(); onClose(); }}
+          <button onClick={() => { stop(); onClose(); }} aria-label="Yopish"
             className="absolute right-3 top-3 h-9 w-9 rounded-full bg-secondary hover:bg-secondary/70 flex items-center justify-center z-10">
             <X className="h-4 w-4" />
           </button>
