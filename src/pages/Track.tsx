@@ -417,3 +417,45 @@ function FilterChip({ active, onClick, children }: any) {
     </button>
   );
 }
+
+function FeedbackForm({ onSubmit }: { onSubmit: (v: "correct" | "incorrect", c?: string) => void }) {
+  const [verdict, setVerdict] = useState<"correct" | "incorrect" | null>(null);
+  const [comment, setComment] = useState("");
+  if (!verdict) {
+    return (
+      <div className="flex gap-2">
+        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setVerdict("correct")}>
+          <ThumbsUp className="mr-1 h-3.5 w-3.5" /> To'g'ri
+        </Button>
+        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setVerdict("incorrect")}>
+          <ThumbsDown className="mr-1 h-3.5 w-3.5" /> Noto'g'ri
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      <div className="text-[11px] text-muted-foreground">
+        Baho: <span className="font-semibold text-foreground">{verdict === "correct" ? "To'g'ri" : "Noto'g'ri"}</span>
+        {" · "}
+        <button className="underline hover:text-primary" onClick={() => setVerdict(null)}>o'zgartirish</button>
+      </div>
+      <Textarea
+        rows={2}
+        maxLength={500}
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        placeholder="Izoh (ixtiyoriy): nima uchun to'g'ri/noto'g'ri deb hisoblaysiz?"
+        className="text-xs"
+      />
+      <div className="flex gap-2 justify-end">
+        <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => onSubmit(verdict)}>
+          Izohsiz yuborish
+        </Button>
+        <Button size="sm" className="h-8 text-xs gradient-accent text-accent-foreground" onClick={() => onSubmit(verdict, comment.trim() || undefined)}>
+          Yuborish
+        </Button>
+      </div>
+    </div>
+  );
+}
