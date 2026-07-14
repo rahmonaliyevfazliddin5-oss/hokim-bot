@@ -992,6 +992,177 @@ Deno.serve(async (req) => {
       return json({ ok: true, escalated, details });
     }
 
+    // ---- Escalation rules (get/set) ----
+    if (action === "escalation_rules_get") {
+      const { data } = await supabase.from("escalation_rules").select("*").eq("id", 1).maybeSingle();
+      return json({
+        rules: data ?? {
+          id: 1, enabled: true, severity_bump_days: 0,
+          reroute_to_hokimiyat_days: 3, target_status: "korib_chiqilmoqda", max_severity: "yuqori",
+        },
+      });
+    }
+    if (action === "escalation_rules_set") {
+      const { enabled, severity_bump_days, reroute_to_hokimiyat_days, target_status, max_severity } = params as Record<string, unknown>;
+      const patch = {
+        id: 1,
+        enabled: !!enabled,
+        severity_bump_days: Math.max(0, Math.min(365, Number(severity_bump_days) || 0)),
+        reroute_to_hokimiyat_days: Math.max(0, Math.min(365, Number(reroute_to_hokimiyat_days) || 3)),
+        target_status: typeof target_status === "string" && target_status ? target_status : "korib_chiqilmoqda",
+        max_severity: ["oddiy", "orta", "yuqori"].includes(String(max_severity)) ? String(max_severity) : "yuqori",
+        updated_at: new Date().toISOString(),
+        updated_by: actorLabel,
+      };
+      const { error } = await supabase.from("escalation_rules").upsert(patch);
+      if (error) return json({ error: error.message }, 500);
+      await audit("escalation_rules_updated", actorLabel,
+        `enabled=${patch.enabled} sev@${patch.severity_bump_days}d reroute@${patch.reroute_to_hokimiyat_days}d → ${patch.target_status}, max=${patch.max_severity}`);
+      return json({ ok: true, rules: patch });
+    }
+
+    // ---- SLA / KPI stats ----
+    if (action === "sla_kpi_stats") {
+      const nowMs = Date.now();
+      const { data: rows, error } = await supabase
+        .from("complaints")
+        .select("id, status, severity, routing_target, eta_days, created_at, updated_at")
+        .limit(5000);
+      if (error) return json({ error: error.message }, 500);
+
+      // Escalation counts from activity_logs
+      const { data: escLogs } = await supabase.from("activity_logs")
+        .select("complaint_id").eq("action", "escalated").limit(5000);
+      const escSet = new Set((escLogs ?? []).map((r) => r.complaint_id).filter(Boolean));
+
+      const DONE = new Set(["hal_qilindi", "bajarildi"]);
+      const REJECTED = new Set(["rad_etildi"]);
+
+      let total = 0, resolved = 0, resolvedOnTime = 0, resolvedLate = 0;
+      let openTotal = 0, openOverdue = 0, escalatedTotal = 0;
+      // Delay buckets in days (negative = ahead of ETA / on time)
+      const buckets = { "on_time": 0, "0_3": 0, "3_7": 0, "7_14": 0, "14_30": 0, "30_plus": 0 };
+      const bySeverity: Record<string, { total: number; resolved: number; on_time: number; overdue: number }> = {};
+      // 30-day trend by day
+      const trend: Record<string, { created: number; resolved: number; escalated: number }> = {};
+
+      for (const r of rows ?? []) {
+        total++;
+        const sev = r.severity ?? "oddiy";
+        bySeverity[sev] ||= { total: 0, resolved: 0, on_time: 0, overdue: 0 };
+        bySeverity[sev].total++;
+        if (escSet.has(r.id)) escalatedTotal++;
+
+        const createdMs = new Date(r.created_at).getTime();
+        const dueMs = r.eta_days != null ? createdMs + Number(r.eta_days) * 86400000 : null;
+        const day = new Date(r.created_at).toISOString().slice(0, 10);
+        trend[day] ||= { created: 0, resolved: 0, escalated: 0 };
+        trend[day].created++;
+        if (escSet.has(r.id)) trend[day].escalated++;
+
+        if (DONE.has(r.status)) {
+          resolved++;
+          bySeverity[sev].resolved++;
+          const finMs = new Date(r.updated_at ?? r.created_at).getTime();
+          trend[new Date(r.updated_at ?? r.created_at).toISOString().slice(0, 10)] ||= { created: 0, resolved: 0, escalated: 0 };
+          trend[new Date(r.updated_at ?? r.created_at).toISOString().slice(0, 10)].resolved++;
+          if (dueMs == null) { buckets.on_time++; resolvedOnTime++; bySeverity[sev].on_time++; continue; }
+          const delayD = Math.floor((finMs - dueMs) / 86400000);
+          if (delayD <= 0) { buckets.on_time++; resolvedOnTime++; bySeverity[sev].on_time++; }
+          else {
+            resolvedLate++; bySeverity[sev].overdue++;
+            if (delayD < 3) buckets["0_3"]++;
+            else if (delayD < 7) buckets["3_7"]++;
+            else if (delayD < 14) buckets["7_14"]++;
+            else if (delayD < 30) buckets["14_30"]++;
+            else buckets["30_plus"]++;
+          }
+        } else if (!REJECTED.has(r.status)) {
+          openTotal++;
+          if (dueMs != null && dueMs < nowMs) openOverdue++;
+        }
+      }
+
+      // Compact trend (last 30 days sorted)
+      const trendArr = Object.entries(trend)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .slice(-30)
+        .map(([date, v]) => ({ date, ...v }));
+
+      return json({
+        total, resolved, resolvedOnTime, resolvedLate,
+        openTotal, openOverdue, escalatedTotal,
+        onTimeRate: resolved ? resolvedOnTime / resolved : null,
+        delayBuckets: buckets,
+        bySeverity,
+        trend: trendArr,
+      });
+    }
+
+    // ---- Admin users management (superadmin only, enforced above) ----
+    if (action === "admin_users_list") {
+      const { data, error } = await supabase.from("admin_users")
+        .select("id, username, role, full_name, active, created_at, updated_at, created_by")
+        .order("created_at", { ascending: false });
+      if (error) return json({ error: error.message }, 500);
+      return json({ users: data ?? [] });
+    }
+    if (action === "admin_users_create") {
+      const { username, password, role: newRole, full_name } = params as Record<string, unknown>;
+      if (typeof username !== "string" || !/^[a-zA-Z0-9_.-]{3,32}$/.test(username)) {
+        return json({ error: "invalid_username" }, 400);
+      }
+      if (typeof password !== "string" || password.length < 6) return json({ error: "password_too_short" }, 400);
+      if (!["editor", "operator", "auditor", "superadmin"].includes(String(newRole))) {
+        return json({ error: "invalid_role" }, 400);
+      }
+      // Insert with placeholder hash then set via RPC (proper bcrypt)
+      const { error: insErr } = await supabase.from("admin_users").insert({
+        username, role: newRole, full_name: typeof full_name === "string" ? full_name : null,
+        password_hash: "!", created_by: actorLabel,
+      });
+      if (insErr) return json({ error: insErr.message }, 500);
+      const { error: pwErr } = await supabase.rpc("set_admin_user_password", {
+        _username: username, _password: password, _actor: actorLabel,
+      });
+      if (pwErr) return json({ error: pwErr.message }, 500);
+      await audit("admin_user_created", actorLabel, `username=${username} role=${newRole}`);
+      return json({ ok: true });
+    }
+    if (action === "admin_users_update") {
+      const { id, role: newRole, full_name, active } = params as Record<string, unknown>;
+      if (typeof id !== "string") return json({ error: "id_required" }, 400);
+      const patch: Record<string, unknown> = {};
+      if (typeof newRole === "string" && ["editor", "operator", "auditor", "superadmin"].includes(newRole)) patch.role = newRole;
+      if (typeof full_name === "string") patch.full_name = full_name;
+      if (typeof active === "boolean") patch.active = active;
+      if (!Object.keys(patch).length) return json({ error: "nothing_to_update" }, 400);
+      const { error } = await supabase.from("admin_users").update(patch).eq("id", id);
+      if (error) return json({ error: error.message }, 500);
+      await audit("admin_user_updated", actorLabel, `id=${id.slice(0, 8)} ${JSON.stringify(patch)}`);
+      return json({ ok: true });
+    }
+    if (action === "admin_users_delete") {
+      const { id } = params as { id?: string };
+      if (typeof id !== "string") return json({ error: "id_required" }, 400);
+      const { data: u } = await supabase.from("admin_users").select("username").eq("id", id).maybeSingle();
+      const { error } = await supabase.from("admin_users").delete().eq("id", id);
+      if (error) return json({ error: error.message }, 500);
+      await audit("admin_user_deleted", actorLabel, `username=${u?.username ?? id.slice(0, 8)}`);
+      return json({ ok: true });
+    }
+    if (action === "admin_users_reset_password") {
+      const { username, new_password } = params as { username?: string; new_password?: string };
+      if (typeof username !== "string" || !username) return json({ error: "username_required" }, 400);
+      if (typeof new_password !== "string" || new_password.length < 6) return json({ error: "password_too_short" }, 400);
+      const { error } = await supabase.rpc("set_admin_user_password", {
+        _username: username, _password: new_password, _actor: actorLabel,
+      });
+      if (error) return json({ error: error.message }, 500);
+      await audit("admin_user_password_reset", actorLabel, `username=${username}`);
+      return json({ ok: true });
+    }
+
     return json({ error: "unknown_action" }, 400);
   } catch (e) {
     return json({ error: String(e) }, 500);
