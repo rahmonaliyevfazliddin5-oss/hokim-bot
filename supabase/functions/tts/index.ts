@@ -44,9 +44,16 @@ Deno.serve(async (req) => {
     if (!r.ok) {
       const err = await r.text();
       console.error("tts_upstream_error:", r.status, err);
-      return new Response(JSON.stringify({ error: "tts_upstream_error" }), {
-        status: r.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      // Return 200 so supabase.functions.invoke doesn't throw; client falls back to Web Speech API.
+      const isAuth = r.status === 401 || r.status === 403;
+      return new Response(
+        JSON.stringify({
+          error: isAuth ? "auth_error" : "tts_upstream_error",
+          fallback: true,
+          status: r.status,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
     const buf = await r.arrayBuffer();
     return new Response(buf, {
@@ -54,8 +61,8 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error("tts unhandled:", e);
-    return new Response(JSON.stringify({ error: "internal_error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return new Response(JSON.stringify({ error: "internal_error", fallback: true }), {
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
