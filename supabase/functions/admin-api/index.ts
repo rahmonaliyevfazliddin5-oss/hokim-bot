@@ -763,6 +763,25 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === "routing_feedback_stats") {
+      const { data, error } = await supabase.from("activity_logs")
+        .select("details, created_at, complaint_id")
+        .eq("action", "routing_feedback")
+        .order("created_at", { ascending: false })
+        .limit(5000);
+      if (error) return json({ error: error.message }, 500);
+      let correct = 0, incorrect = 0;
+      const recent: any[] = [];
+      for (const r of data ?? []) {
+        const v = /verdict=(\w+)/.exec(r.details ?? "")?.[1];
+        if (v === "correct") correct++;
+        else if (v === "incorrect") incorrect++;
+        if (recent.length < 50) recent.push({ complaint_id: r.complaint_id, verdict: v, created_at: r.created_at });
+      }
+      const total = correct + incorrect;
+      return json({ correct, incorrect, total, accuracy: total ? correct / total : null, recent });
+    }
+
     return json({ error: "unknown_action" }, 400);
   } catch (e) {
     return json({ error: String(e) }, 500);
