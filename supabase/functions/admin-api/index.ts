@@ -466,6 +466,56 @@ Deno.serve(async (req) => {
 
     if (!isAdmin) return json({ error: "unauthorized" }, 401);
 
+    // ---- Role-based access control ----
+    const role: string = typeof payload.role === "string" ? payload.role : "superadmin";
+    const actorLabel = typeof payload.username === "string" ? `admin:${payload.username}` : "admin";
+
+    // Actions permitted by each admin role. `superadmin` = all.
+    const READ_ONLY_ACTIONS = new Set([
+      "list_complaints", "list_logs", "routing_audit", "routing_feedback_stats",
+      "admin_log_view", "sla_kpi_stats",
+      "admin_list_mahallas", "admin_recent_login_attempts",
+      "admin_list_mahalla_sessions", "admin_mahalla_audit",
+      "admin_mahalla_login_stats", "admin_alerts_list",
+      "admin_alert_deliveries_list", "admin_alert_config_get",
+      "escalation_rules_get", "admin_users_list", "admin_whoami",
+    ]);
+    const MUTATE_ACTIONS = new Set([
+      "update_complaint", "escalate_overdue", "admin_alerts_mark_seen",
+    ]);
+    const OPERATOR_ONLY_STATUS = new Set(["jarayonda", "korib_chiqilmoqda", "hal_qilindi"]);
+    const SUPERADMIN_ONLY = new Set([
+      "admin_reset_mahalla_password", "admin_reset_all_mahalla_passwords",
+      "admin_revoke_mahalla_session", "admin_bulk_revoke_sessions",
+      "admin_alert_config_set", "admin_alert_test_email",
+      "escalation_rules_set",
+      "admin_users_create", "admin_users_update", "admin_users_delete",
+      "admin_users_reset_password",
+    ]);
+
+    if (role !== "superadmin") {
+      if (SUPERADMIN_ONLY.has(action)) return json({ error: "forbidden_role" }, 403);
+      if (role === "auditor" && MUTATE_ACTIONS.has(action)) return json({ error: "forbidden_role" }, 403);
+      // operators can update status but not free-form admin_notes; editors can do both.
+      if (role === "operator" && action === "update_complaint") {
+        const status = params?.status;
+        if (typeof status === "string" && !OPERATOR_ONLY_STATUS.has(status)) {
+          return json({ error: "operator_status_restricted" }, 403);
+        }
+        if (typeof params?.admin_notes === "string" && params.admin_notes.trim().length > 0) {
+          return json({ error: "operator_notes_forbidden" }, 403);
+        }
+      }
+      // Whitelist check: only allow known reads/mutations
+      if (!READ_ONLY_ACTIONS.has(action) && !MUTATE_ACTIONS.has(action)) {
+        return json({ error: "forbidden_role" }, 403);
+      }
+    }
+
+    if (action === "admin_whoami") {
+      return json({ role, username: payload.username ?? null });
+    }
+
     // ============ Admin actions ============
     if (action === "list_complaints") {
       const { data, error } = await supabase.from("complaints").select("*")
