@@ -132,6 +132,33 @@ async function logAttempt(mahalla: string | null, ip: string, success: boolean) 
   await supabase.from("mahalla_login_attempts").insert({ mahalla, ip, success });
 }
 
+// ---------- admin alerts ----------
+async function raiseAlert(kind: string, mahalla: string | null, ip: string | null, count: number, details: string) {
+  // Dedupe: skip if same kind + mahalla + ip alert exists within the current window
+  const since = new Date(Date.now() - RL_WINDOW_MIN * 60 * 1000).toISOString();
+  let q = supabase.from("admin_alerts").select("id", { count: "exact", head: true })
+    .eq("kind", kind).gte("created_at", since);
+  if (mahalla) q = q.eq("mahalla", mahalla); else q = q.is("mahalla", null);
+  if (ip) q = q.eq("ip", ip); else q = q.is("ip", null);
+  const { count: existing } = await q;
+  if ((existing ?? 0) > 0) return;
+  await supabase.from("admin_alerts").insert({
+    kind, mahalla, ip, count, window_minutes: RL_WINDOW_MIN, details,
+  });
+}
+async function checkAndAlert(mahalla: string, ip: string) {
+  const since = new Date(Date.now() - RL_WINDOW_MIN * 60 * 1000).toISOString();
+  const { count } = await supabase.from("mahalla_login_attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("mahalla", mahalla).eq("ip", ip).eq("success", false).gte("attempted_at", since);
+  const n = count ?? 0;
+  if (n >= RL_MAX_FAILURES) {
+    await raiseAlert("blocked", mahalla, ip, n, `${mahalla} / ${ip}: ${n} xato — bloklandi`);
+  } else if (n >= RL_ALERT_THRESHOLD) {
+    await raiseAlert("approaching_block", mahalla, ip, n, `${mahalla} / ${ip}: ${n}/${RL_MAX_FAILURES} xato urinish`);
+  }
+}
+
 // ---------- session (refresh token) ----------
 async function createSession(mahalla: string, ip: string, ua: string): Promise<string> {
   const raw = randomToken(32);
