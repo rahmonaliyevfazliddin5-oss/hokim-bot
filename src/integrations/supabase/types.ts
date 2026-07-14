@@ -414,9 +414,22 @@ export type Database = {
     }
     Functions: {
       mahalla_slug: { Args: { _name: string }; Returns: string }
+      set_admin_user_password: {
+        Args: { _actor?: string; _password: string; _username: string }
+        Returns: undefined
+      }
       set_mahalla_password: {
         Args: { _actor?: string; _mahalla: string; _password: string }
         Returns: undefined
+      }
+      verify_admin_user_password: {
+        Args: { _password: string; _username: string }
+        Returns: {
+          active: boolean
+          full_name: string
+          ok: boolean
+          role: string
+        }[]
       }
       verify_mahalla_password: {
         Args: { _mahalla: string; _password: string }
