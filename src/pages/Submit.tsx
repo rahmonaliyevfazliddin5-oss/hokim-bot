@@ -81,9 +81,7 @@ export default function Submit() {
     if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
     setLoading(true);
     try {
-      const detail = classifyMulti(form.text);
-      const code = generateTrackingCode();
-      const aiResp = autoResponseMulti(detail);
+      const ai = analyze(form.text, form.mahalla || null);
       const image_urls = images.length > 0 ? await uploadAll() : [];
       const map_link = coords ? `https://www.google.com/maps?q=${coords.lat},${coords.lon}` : null;
 
@@ -98,11 +96,15 @@ export default function Submit() {
           mahalla: form.mahalla,
           location: fullLocation,
           text: form.text.trim(),
-          categories: detail.map(d => d.category),
-          category_details: detail,
-          ai_confidence: detail[0].confidence,
-          ai_response: aiResp,
-          tracking_code: code,
+          categories: ai.categories.map(d => d.category),
+          category_details: ai.categories,
+          ai_confidence: ai.categories[0].confidence,
+          ai_response: ai.ai_response,
+          ai_analysis: ai,
+          severity: ai.severity,
+          routing_target: ai.routing,
+          responsible_org: ai.responsible_org,
+          eta_days: ai.eta_days,
           latitude: coords?.lat ?? null,
           longitude: coords?.lon ?? null,
           map_link,
@@ -111,7 +113,15 @@ export default function Submit() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      setResult({ code: data?.tracking_code || code, cats: detail.map(d => d.category), response: aiResp });
+      setResult({
+        code: data?.tracking_code,
+        cats: ai.categories.map(d => d.category),
+        response: ai.ai_response,
+        severity: ai.severity,
+        routing: ai.routing,
+        org: ai.responsible_org,
+        etaLabel: ai.eta_label,
+      });
     } catch (err: any) {
       toast.error(err.message);
     } finally {
