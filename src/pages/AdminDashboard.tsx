@@ -23,6 +23,10 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState("");
   const [fStatus, setFStatus] = useState("all");
   const [fCat, setFCat] = useState("all");
+  const [fSev, setFSev] = useState("all");
+  const [fRoute, setFRoute] = useState("all");
+  const [fMahalla, setFMahalla] = useState("all");
+  const [fOrg, setFOrg] = useState("all");
   const [open, setOpen] = useState<any | null>(null);
   const [newStatus, setNewStatus] = useState("");
   const [notes, setNotes] = useState("");
