@@ -625,10 +625,10 @@ Deno.serve(async (req) => {
       }
       for (const [m, ipMap] of ipFailByMahalla) {
         const s = stats.get(m); if (!s) continue;
-        for (const [ip, n] of ipMap) if (n >= RL_MAX_FAILURES) s.blocked_ips.push(ip);
+        for (const [ip, n] of ipMap) if (n >= cfg.block_threshold) s.blocked_ips.push(ip);
       }
       const rows = Array.from(stats.values()).sort((a, b) => b.failed_window - a.failed_window || b.total - a.total);
-      return json({ stats: rows, window_minutes: RL_WINDOW_MIN, threshold: RL_MAX_FAILURES });
+      return json({ stats: rows, window_minutes: cfg.window_minutes, threshold: cfg.block_threshold });
     }
 
     // ---- Bulk reset all mahalla passwords to default ----
