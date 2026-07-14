@@ -63,7 +63,7 @@ export default function Home() {
       <section className="grid md:grid-cols-3 gap-4 mt-8">
         <div className="glass rounded-xl p-5 flex items-center gap-4">
           <div className="h-10 w-10 rounded-lg gradient-accent flex items-center justify-center"><Phone className="h-5 w-5 text-accent-foreground" /></div>
-          <div><div className="text-xs text-muted-foreground">Ishonch telefoni</div><div className="font-bold">+998 (73) 244-44-77</div></div>
+          <div><div className="text-xs text-muted-foreground">Ishonch telefoni</div><div className="font-bold">1212</div></div>
         </div>
         <div className="glass rounded-xl p-5 flex items-center gap-4">
           <div className="h-10 w-10 rounded-lg gradient-accent flex items-center justify-center"><Mail className="h-5 w-5 text-accent-foreground" /></div>
@@ -71,7 +71,7 @@ export default function Home() {
         </div>
         <div className="glass rounded-xl p-5 flex items-center gap-4">
           <div className="h-10 w-10 rounded-lg gradient-accent flex items-center justify-center"><Building2 className="h-5 w-5 text-accent-foreground" /></div>
-          <div><div className="text-xs text-muted-foreground">Manzil</div><div className="font-bold">Farg'ona sh., Mustaqillik 24</div></div>
+          <div><div className="text-xs text-muted-foreground">Manzil</div><div className="font-bold">Farg'ona tumani hokimligi</div></div>
         </div>
       </section>
     </div>

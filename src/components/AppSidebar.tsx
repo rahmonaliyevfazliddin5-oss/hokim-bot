@@ -42,7 +42,7 @@ export function AppSidebar() {
           {!collapsed && (
             <div className="min-w-0">
               <div className="font-bold text-sidebar-foreground leading-tight">{t("brand")}</div>
-              <div className="text-[10px] text-sidebar-foreground/60 leading-tight truncate">Farg'ona hokimligi</div>
+              <div className="text-[10px] text-sidebar-foreground/60 leading-tight truncate">Farg'ona tumani hokimligi</div>
             </div>
           )}
         </div>
