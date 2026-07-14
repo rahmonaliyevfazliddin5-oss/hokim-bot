@@ -37,7 +37,7 @@ export function AppLayout() {
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-16 flex items-center justify-between border-b border-border/60 bg-card/60 backdrop-blur-md px-4 sticky top-0 z-30">
             <div className="flex items-center gap-3">
-              <SidebarTrigger />
+              <SidebarTrigger aria-label="Menyuni ochish/yopish" />
               <div className="hidden sm:block">
                 <div className="text-sm font-semibold">{t("brand")}</div>
                 <div className="text-xs text-muted-foreground">{t("tagline")}</div>
