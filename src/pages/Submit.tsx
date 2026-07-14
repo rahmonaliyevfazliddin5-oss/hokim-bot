@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
 import { useI18n } from "@/i18n/I18nProvider";
-import { classifyMulti, generateTrackingCode, autoResponseMulti } from "@/lib/ai";
+import { analyze } from "@/lib/ai";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { FARGONA_TUMAN_NAME } from "@/lib/fargona";
