@@ -493,6 +493,9 @@ function AuditTab() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [mahalla, setMahalla] = useState("");
+  const [ipFilter, setIpFilter] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set(AUDIT_ACTIONS.map((a) => a.key)));
 
   async function load() {
@@ -502,8 +505,17 @@ function AuditTab() {
         q: q || undefined,
         mahalla: mahalla || undefined,
         actions: Array.from(selected),
+        from: fromDate ? new Date(fromDate).toISOString() : undefined,
+        to: toDate ? new Date(toDate + "T23:59:59").toISOString() : undefined,
       });
-      setRows(logs || []);
+      let filtered = logs || [];
+      if (ipFilter) {
+        const needle = ipFilter.toLowerCase();
+        filtered = filtered.filter((r) =>
+          (r.details ?? "").toLowerCase().includes(needle) ||
+          (r.actor ?? "").toLowerCase().includes(needle));
+      }
+      setRows(filtered);
     } catch (e: any) { toast.error(e.message); }
     setLoading(false);
   }
@@ -517,18 +529,46 @@ function AuditTab() {
     });
   }
 
+  function safeSlug(s: string) {
+    return s.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 40);
+  }
+  function buildFilename(ext: string) {
+    const parts: string[] = ["audit"];
+    if (fromDate || toDate) parts.push(`${fromDate || "…"}_${toDate || "…"}`);
+    else parts.push(new Date().toISOString().slice(0, 10));
+    if (mahalla) parts.push(`mfy-${safeSlug(mahalla)}`);
+    if (ipFilter) parts.push(`ip-${safeSlug(ipFilter)}`);
+    if (q) parts.push(`q-${safeSlug(q)}`);
+    const chosen = AUDIT_ACTIONS.filter((a) => selected.has(a.key));
+    if (chosen.length && chosen.length < AUDIT_ACTIONS.length) parts.push(`actions-${chosen.length}`);
+    return `${parts.join("__")}.${ext}`;
+  }
+  function filterSummary() {
+    const bits: string[] = [];
+    if (fromDate || toDate) bits.push(`Sana: ${fromDate || "…"} — ${toDate || "…"}`);
+    if (mahalla) bits.push(`MFY: ${mahalla}`);
+    if (ipFilter) bits.push(`IP: ${ipFilter}`);
+    if (q) bits.push(`Qidiruv: "${q}"`);
+    const chosen = AUDIT_ACTIONS.filter((a) => selected.has(a.key));
+    if (chosen.length && chosen.length < AUDIT_ACTIONS.length) {
+      bits.push(`Amallar: ${chosen.map((a) => a.key).join(", ")}`);
+    }
+    return bits.length ? bits.join(" · ") : "Filtr yo'q";
+  }
+
   function exportCSV() {
     if (rows.length === 0) { toast.error("Eksport uchun ma'lumot yo'q"); return; }
     const header = ["created_at", "action", "actor", "details"];
     const escape = (v: string) => `"${(v ?? "").replace(/"/g, '""')}"`;
+    const meta = `# Hokim AI audit eksport\n# Vaqt: ${new Date().toISOString()}\n# ${filterSummary()}\n# Yozuvlar: ${rows.length}\n`;
     const lines = [header.join(",")];
     for (const r of rows) {
       lines.push([r.created_at, r.action, r.actor ?? "", r.details ?? ""].map((v) => escape(String(v))).join(","));
     }
-    const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["\uFEFF" + meta + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.href = url; a.download = buildFilename("csv");
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
     toast.success(`${rows.length} yozuv CSV ga eksport qilindi`);
@@ -540,13 +580,15 @@ function AuditTab() {
     if (!win) { toast.error("Popup bloklangan"); return; }
     const escape = (v: string) => (v ?? "").replace(/[&<>]/g, (c) =>
       c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;");
+    const filename = buildFilename("pdf");
     const html = `
 <!doctype html><html><head><meta charset="utf-8"/>
-<title>Audit log — ${new Date().toLocaleDateString()}</title>
+<title>${escape(filename)}</title>
 <style>
   body { font-family: -apple-system, sans-serif; padding: 24px; color:#111; }
   h1 { font-size: 18px; margin: 0 0 4px; }
-  .meta { color:#666; font-size:12px; margin-bottom:16px; }
+  .meta { color:#666; font-size:12px; margin-bottom:6px; }
+  .filters { color:#333; font-size:12px; margin-bottom:16px; padding:6px 10px; background:#f5f7fa; border-left:3px solid #3b82f6; }
   table { width:100%; border-collapse: collapse; font-size:11px; }
   th, td { border:1px solid #ddd; padding:6px 8px; text-align:left; vertical-align:top; }
   th { background:#f5f5f5; text-transform:uppercase; font-size:10px; }
@@ -555,6 +597,7 @@ function AuditTab() {
 </style></head><body>
 <h1>Mahalla audit log</h1>
 <div class="meta">Eksport: ${new Date().toLocaleString()} · Yozuvlar: ${rows.length}</div>
+<div class="filters"><b>Filtr:</b> ${escape(filterSummary())}</div>
 <button class="noprint" onclick="window.print()">PDF sifatida saqlash / Chop etish</button>
 <table>
   <thead><tr><th>Vaqt</th><th>Amal</th><th>Actor</th><th>Tafsilot</th></tr></thead>
@@ -567,11 +610,12 @@ function AuditTab() {
     </tr>`).join("")}
   </tbody>
 </table>
-<script>setTimeout(function(){ window.print(); }, 300);</script>
+<script>setTimeout(function(){ document.title = ${JSON.stringify(filename)}; window.print(); }, 300);</script>
 </body></html>`;
     win.document.write(html);
     win.document.close();
   }
+
 
   const actionColor = (a: string) =>
     a === "mahalla_login_success" ? "bg-success/15 text-success"
