@@ -14,10 +14,16 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function sanitizeComment(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  // Strip pipe and newlines so the encoded "verdict=x|ip=y|comment=z" stays parseable.
+  return raw.replace(/[|\r\n]+/g, " ").trim().slice(0, 500);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const { tracking_code, verdict } = await req.json();
+    const { tracking_code, verdict, comment } = await req.json();
     if (typeof tracking_code !== "string" || !/^HOK-\d{8}-\d{3,5}$/i.test(tracking_code.trim())) {
       return json({ error: "invalid_code" }, 400);
     }
@@ -25,22 +31,33 @@ Deno.serve(async (req) => {
       return json({ error: "invalid_verdict" }, 400);
     }
     const code = tracking_code.trim().toUpperCase();
+    const cleanComment = sanitizeComment(comment);
+
     const { data: c } = await supabase.from("complaints").select("id").eq("tracking_code", code).maybeSingle();
     if (!c) return json({ error: "not_found" }, 404);
 
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "";
 
-    // De-dupe: one feedback per code+ip
+    // Encode structured payload in `details`
+    const details = `verdict=${verdict}|ip=${ip}` + (cleanComment ? `|comment=${cleanComment}` : "");
+
+    // Update existing row (same code+ip) — else insert
     const { data: prev } = await supabase.from("activity_logs")
       .select("id").eq("complaint_id", c.id).eq("action", "routing_feedback")
       .ilike("details", `%|ip=${ip}%`).limit(1);
-    if (prev && prev.length > 0) return json({ error: "already_submitted" }, 409);
+
+    if (prev && prev.length > 0) {
+      await supabase.from("activity_logs")
+        .update({ details, created_at: new Date().toISOString() })
+        .eq("id", prev[0].id);
+      return json({ ok: true, updated: true });
+    }
 
     await supabase.from("activity_logs").insert({
       complaint_id: c.id,
       action: "routing_feedback",
       actor: "citizen",
-      details: `verdict=${verdict}|ip=${ip}`,
+      details,
     });
     return json({ ok: true });
   } catch (e) {
