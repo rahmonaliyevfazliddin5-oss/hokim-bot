@@ -129,7 +129,7 @@
     "view_map": "Харитада кўриш",
     "ai_keywords": "Аниқланган сўзлар"
   },
-  "status": { "yangi": "Янги", "jarayonda": "Жараёнда", "bajarildi": "Бажарилди", "rad_etildi": "Рад этилди" },
+  "status": { "yangi": "Янги", "qabul_qilindi": "Қабул қилинди", "ai_tahlil": "AI таҳлил қилинмоқда", "mahallaga_yuborildi": "Маҳаллага юборилди", "hokimiyatga_yuborildi": "Ҳокимиятга юборилди", "korib_chiqilmoqda": "Кўриб чиқилмоқда", "jarayonda": "Жараёнда", "hal_qilindi": "Ҳал қилинди", "bajarildi": "Бажарилди", "rad_etildi": "Рад этилди" },
   "category": { "gaz": "Газ", "elektr": "Электр", "suv": "Сув", "chiqindi": "Чиқинди", "yo_l": "Йўл", "boshqa": "Бошқа" },
   "regions": { "fargona": "Фарғона тумани" },
   "footer": "© 2026 Фарғона тумани ҳокимлиги — Ҳоким AI"

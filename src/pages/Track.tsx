@@ -90,6 +90,23 @@ export default function Track() {
             </div>
           )}
 
+          {(data.severity || data.routing_target || data.responsible_org || data.eta_days) && (
+            <div className="rounded-xl bg-primary/5 border border-primary/20 p-4 mb-3 grid grid-cols-2 gap-3 text-xs">
+              {data.severity && (
+                <div><div className="text-muted-foreground uppercase tracking-wider">Og'irlik</div><div className="font-semibold capitalize">{data.severity === "orta" ? "o'rta" : data.severity}</div></div>
+              )}
+              {data.routing_target && (
+                <div><div className="text-muted-foreground uppercase tracking-wider">Yo'naltirildi</div><div className="font-semibold">{data.routing_target === "hokimiyat" ? "Hokimiyat" : "MFY"}</div></div>
+              )}
+              {data.responsible_org && (
+                <div className="col-span-2"><div className="text-muted-foreground uppercase tracking-wider">Mas'ul tashkilot</div><div className="font-semibold">{data.responsible_org}</div></div>
+              )}
+              {data.eta_days != null && (
+                <div className="col-span-2"><div className="text-muted-foreground uppercase tracking-wider">Taxminiy muddat</div><div className="font-semibold">{data.eta_days <= 7 ? "3–7 kun" : data.eta_days <= 30 ? "7–30 kun" : "30+ kun"}</div></div>
+              )}
+            </div>
+          )}
+
           {data.ai_response && (
             <div className="rounded-xl bg-accent/10 border border-accent/20 p-4 mb-3">
               <div className="text-xs font-semibold uppercase tracking-wider text-accent mb-1.5 flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" /> {t("track.ai_response")}</div>

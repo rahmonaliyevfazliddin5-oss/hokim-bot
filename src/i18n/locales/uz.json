@@ -131,7 +131,13 @@
   },
   "status": {
     "yangi": "Yangi",
+    "qabul_qilindi": "Qabul qilindi",
+    "ai_tahlil": "AI tahlil qilinmoqda",
+    "mahallaga_yuborildi": "Mahallaga yuborildi",
+    "hokimiyatga_yuborildi": "Hokimiyatga yuborildi",
+    "korib_chiqilmoqda": "Ko'rib chiqilmoqda",
     "jarayonda": "Jarayonda",
+    "hal_qilindi": "Hal qilindi",
     "bajarildi": "Bajarildi",
     "rad_etildi": "Rad etildi"
   },

@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
     const { data, error } = await supabase
       .from("complaints")
       .select(
-        "tracking_code, status, category, categories, category_details, text, ai_response, admin_notes, location, district, mahalla, map_link, image_urls, created_at, updated_at",
+        "tracking_code, status, category, categories, category_details, text, ai_response, ai_analysis, severity, routing_target, responsible_org, eta_days, admin_notes, location, district, mahalla, map_link, image_urls, created_at, updated_at",
       )
       .eq("tracking_code", tracking_code.trim().toUpperCase())
       .maybeSingle();

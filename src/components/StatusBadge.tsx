@@ -3,7 +3,13 @@ import { cn } from "@/lib/utils";
 
 const styles: Record<string, string> = {
   yangi: "bg-accent/15 text-accent border-accent/30",
+  qabul_qilindi: "bg-accent/15 text-accent border-accent/30",
+  ai_tahlil: "bg-primary/10 text-primary border-primary/30",
+  mahallaga_yuborildi: "bg-warning/15 text-warning-foreground border-warning/40",
+  hokimiyatga_yuborildi: "bg-warning/15 text-warning-foreground border-warning/40",
+  korib_chiqilmoqda: "bg-warning/15 text-warning-foreground border-warning/40",
   jarayonda: "bg-warning/15 text-warning-foreground border-warning/40",
+  hal_qilindi: "bg-success/15 text-success border-success/30",
   bajarildi: "bg-success/15 text-success border-success/30",
   rad_etildi: "bg-destructive/10 text-destructive border-destructive/30",
 };

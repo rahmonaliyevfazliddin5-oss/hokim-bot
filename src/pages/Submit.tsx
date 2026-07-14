@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
 import { useI18n } from "@/i18n/I18nProvider";
-import { classifyMulti, generateTrackingCode, autoResponseMulti } from "@/lib/ai";
+import { analyze } from "@/lib/ai";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { FARGONA_TUMAN_NAME } from "@/lib/fargona";
@@ -31,7 +31,7 @@ export default function Submit() {
   const [geoLoading, setGeoLoading] = useState(false);
   const [images, setImages] = useState<{ file: File; url: string; uploadedUrl?: string }[]>([]);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ code: string; cats: string[]; response: string } | null>(null);
+  const [result, setResult] = useState<{ code: string; cats: string[]; response: string; severity: string; routing: string; org: string; etaLabel: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
   const cameraInput = useRef<HTMLInputElement>(null);
@@ -81,9 +81,7 @@ export default function Submit() {
     if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
     setLoading(true);
     try {
-      const detail = classifyMulti(form.text);
-      const code = generateTrackingCode();
-      const aiResp = autoResponseMulti(detail);
+      const ai = analyze(form.text, form.mahalla || null);
       const image_urls = images.length > 0 ? await uploadAll() : [];
       const map_link = coords ? `https://www.google.com/maps?q=${coords.lat},${coords.lon}` : null;
 
@@ -98,11 +96,15 @@ export default function Submit() {
           mahalla: form.mahalla,
           location: fullLocation,
           text: form.text.trim(),
-          categories: detail.map(d => d.category),
-          category_details: detail,
-          ai_confidence: detail[0].confidence,
-          ai_response: aiResp,
-          tracking_code: code,
+          categories: ai.categories.map(d => d.category),
+          category_details: ai.categories,
+          ai_confidence: ai.categories[0].confidence,
+          ai_response: ai.ai_response,
+          ai_analysis: ai,
+          severity: ai.severity,
+          routing_target: ai.routing,
+          responsible_org: ai.responsible_org,
+          eta_days: ai.eta_days,
           latitude: coords?.lat ?? null,
           longitude: coords?.lon ?? null,
           map_link,
@@ -111,7 +113,15 @@ export default function Submit() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      setResult({ code: data?.tracking_code || code, cats: detail.map(d => d.category), response: aiResp });
+      setResult({
+        code: data?.tracking_code,
+        cats: ai.categories.map(d => d.category),
+        response: ai.ai_response,
+        severity: ai.severity,
+        routing: ai.routing,
+        org: ai.responsible_org,
+        etaLabel: ai.eta_label,
+      });
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -153,6 +163,24 @@ export default function Submit() {
               ))}
             </div>
             <p className="text-sm">{result.response}</p>
+            <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
+              <div className="rounded-md border bg-background/50 px-2.5 py-1.5">
+                <div className="text-muted-foreground">Og'irlik</div>
+                <div className="font-semibold capitalize">{result.severity === "orta" ? "o'rta" : result.severity}</div>
+              </div>
+              <div className="rounded-md border bg-background/50 px-2.5 py-1.5">
+                <div className="text-muted-foreground">Yo'naltirildi</div>
+                <div className="font-semibold">{result.routing === "hokimiyat" ? "Hokimiyat" : "MFY"}</div>
+              </div>
+              <div className="rounded-md border bg-background/50 px-2.5 py-1.5 col-span-2">
+                <div className="text-muted-foreground">Mas'ul tashkilot</div>
+                <div className="font-semibold">{result.org}</div>
+              </div>
+              <div className="rounded-md border bg-background/50 px-2.5 py-1.5 col-span-2">
+                <div className="text-muted-foreground">Taxminiy muddat</div>
+                <div className="font-semibold">{result.etaLabel}</div>
+              </div>
+            </div>
           </div>
           <Button onClick={() => { setResult(null); setForm({ citizen_name: "", citizen_phone: "", mahalla: "", address: "", text: "" }); setImages([]); setCoords(null); }}>
             {t("submit.new_one")}

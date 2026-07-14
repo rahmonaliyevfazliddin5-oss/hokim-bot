@@ -171,6 +171,7 @@ export type Database = {
       complaints: {
         Row: {
           admin_notes: string | null
+          ai_analysis: Json | null
           ai_confidence: number | null
           ai_response: string | null
           categories: string[]
@@ -180,6 +181,7 @@ export type Database = {
           citizen_phone: string
           created_at: string
           district: string | null
+          eta_days: number | null
           id: string
           image_url: string | null
           image_urls: string[]
@@ -189,6 +191,9 @@ export type Database = {
           mahalla: string | null
           map_link: string | null
           region: string | null
+          responsible_org: string | null
+          routing_target: string
+          severity: string
           status: string
           text: string
           tracking_code: string
@@ -196,6 +201,7 @@ export type Database = {
         }
         Insert: {
           admin_notes?: string | null
+          ai_analysis?: Json | null
           ai_confidence?: number | null
           ai_response?: string | null
           categories?: string[]
@@ -205,6 +211,7 @@ export type Database = {
           citizen_phone: string
           created_at?: string
           district?: string | null
+          eta_days?: number | null
           id?: string
           image_url?: string | null
           image_urls?: string[]
@@ -214,6 +221,9 @@ export type Database = {
           mahalla?: string | null
           map_link?: string | null
           region?: string | null
+          responsible_org?: string | null
+          routing_target?: string
+          severity?: string
           status?: string
           text: string
           tracking_code: string
@@ -221,6 +231,7 @@ export type Database = {
         }
         Update: {
           admin_notes?: string | null
+          ai_analysis?: Json | null
           ai_confidence?: number | null
           ai_response?: string | null
           categories?: string[]
@@ -230,6 +241,7 @@ export type Database = {
           citizen_phone?: string
           created_at?: string
           district?: string | null
+          eta_days?: number | null
           id?: string
           image_url?: string | null
           image_urls?: string[]
@@ -239,6 +251,9 @@ export type Database = {
           mahalla?: string | null
           map_link?: string | null
           region?: string | null
+          responsible_org?: string | null
+          routing_target?: string
+          severity?: string
           status?: string
           text?: string
           tracking_code?: string
