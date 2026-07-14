@@ -187,7 +187,7 @@ function AvatarPicker({
       <div onClick={e => e.stopPropagation()} className="w-full max-w-lg glass rounded-2xl p-4 shadow-2xl border border-border/60">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-bold flex items-center gap-2"><Users className="h-4 w-4 text-accent" /> Virtual avatar bilan bog'lanish</h3>
-          <button onClick={onClose} className="h-8 w-8 rounded-full hover:bg-secondary flex items-center justify-center"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} aria-label="Yopish" className="h-8 w-8 rounded-full hover:bg-secondary flex items-center justify-center"><X className="h-4 w-4" /></button>
         </div>
         <div className="grid grid-cols-2 gap-2 max-h-[60vh] overflow-y-auto">
           {list.map(p => {
