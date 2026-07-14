@@ -18,6 +18,26 @@ function json(body: unknown, status = 200) {
 const str = (v: unknown, min: number, max: number) =>
   typeof v === "string" && v.trim().length >= min && v.trim().length <= max;
 
+function ymdUTC(d: Date) {
+  return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+async function nextTrackingCode(): Promise<string> {
+  const now = new Date();
+  const ymd = ymdUTC(now);
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0)).toISOString();
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999)).toISOString();
+  const { count } = await supabase.from("complaints")
+    .select("id", { count: "exact", head: true })
+    .gte("created_at", start)
+    .lte("created_at", end);
+  const seq = String((count ?? 0) + 1).padStart(4, "0");
+  return `HOK-${ymd}-${seq}`;
+}
+
+const ALLOWED_SEVERITY = new Set(["oddiy", "orta", "yuqori"]);
+const ALLOWED_ROUTING = new Set(["mahalla", "hokimiyat"]);
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -28,7 +48,6 @@ Deno.serve(async (req) => {
       !str(p.citizen_name, 2, 120) ||
       !str(p.citizen_phone, 7, 30) ||
       !str(p.text, 10, 2000) ||
-      !str(p.tracking_code, 3, 40) ||
       !Array.isArray(p.categories) ||
       p.categories.length === 0
     ) {
@@ -38,6 +57,17 @@ Deno.serve(async (req) => {
     const image_urls: string[] = Array.isArray(p.image_urls)
       ? p.image_urls.filter((u: unknown) => typeof u === "string").slice(0, 5)
       : [];
+
+    const severity = typeof p.severity === "string" && ALLOWED_SEVERITY.has(p.severity) ? p.severity : "oddiy";
+    const routing_target = typeof p.routing_target === "string" && ALLOWED_ROUTING.has(p.routing_target) ? p.routing_target : "mahalla";
+    const responsible_org = typeof p.responsible_org === "string" && p.responsible_org.length <= 200 ? p.responsible_org : null;
+    const eta_days = typeof p.eta_days === "number" && p.eta_days >= 0 && p.eta_days <= 365 ? Math.floor(p.eta_days) : null;
+
+    // Server-side canonical tracking code
+    const tracking_code = await nextTrackingCode();
+
+    // AI-decided initial status
+    const initial_status = routing_target === "hokimiyat" ? "hokimiyatga_yuborildi" : "mahallaga_yuborildi";
 
     const row = {
       citizen_name: String(p.citizen_name).trim(),
@@ -52,7 +82,13 @@ Deno.serve(async (req) => {
       category_details: p.category_details ?? [],
       ai_confidence: typeof p.ai_confidence === "number" ? p.ai_confidence : 0,
       ai_response: typeof p.ai_response === "string" ? p.ai_response : null,
-      tracking_code: String(p.tracking_code).trim().toUpperCase(),
+      ai_analysis: typeof p.ai_analysis === "object" ? p.ai_analysis : null,
+      severity,
+      routing_target,
+      responsible_org,
+      eta_days,
+      status: initial_status,
+      tracking_code,
       latitude: typeof p.latitude === "number" ? p.latitude : null,
       longitude: typeof p.longitude === "number" ? p.longitude : null,
       map_link: typeof p.map_link === "string" ? p.map_link : null,
@@ -64,12 +100,20 @@ Deno.serve(async (req) => {
 
     await supabase.from("activity_logs").insert({
       action: "complaint_created",
-      details: `Code: ${row.tracking_code}, cats: ${row.categories.join(",")}`,
+      details: `Code: ${row.tracking_code}, cats: ${row.categories.join(",")}, sev: ${severity}, route: ${routing_target}`,
       actor: row.citizen_name,
       complaint_id: data.id,
     });
 
-    return json({ ok: true, tracking_code: data.tracking_code });
+    return json({
+      ok: true,
+      tracking_code: data.tracking_code,
+      severity,
+      routing_target,
+      responsible_org,
+      eta_days,
+      status: initial_status,
+    });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }
