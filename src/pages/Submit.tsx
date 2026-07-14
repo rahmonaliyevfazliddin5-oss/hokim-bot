@@ -273,7 +273,7 @@ export default function Submit() {
               {images.map((img, i) => (
                 <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-border">
                   <img src={img.url} alt="" className="w-full h-full object-cover" />
-                  <button type="button" onClick={() => removeImg(i)} className="absolute top-1 right-1 h-6 w-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center">
+                  <button type="button" onClick={() => removeImg(i)} aria-label="Rasmni o'chirish" className="absolute top-1 right-1 h-6 w-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center">
                     <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
