@@ -81,6 +81,12 @@ export default function AdminLogs() {
           <Button size="sm" variant="outline" onClick={() => { setQ(""); setActor(""); setAct("all"); setFrom(""); setTo(""); }}>
             Tozalash
           </Button>
+          <Button size="sm" variant="outline" onClick={exportCSV} className="text-xs">
+            <Download className="mr-1 h-3.5 w-3.5" /> CSV
+          </Button>
+          <Button size="sm" variant="outline" onClick={exportPDF} className="text-xs">
+            <FileDown className="mr-1 h-3.5 w-3.5" /> PDF
+          </Button>
           <div className="text-xs text-muted-foreground ml-auto">
             Jami: <span className="font-semibold text-foreground">{logs.length}</span>
           </div>
