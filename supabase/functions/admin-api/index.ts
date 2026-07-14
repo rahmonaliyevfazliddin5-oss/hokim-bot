@@ -904,9 +904,20 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
-    // ---- Auto-escalation: complaints whose ETA has passed ----
+    // ---- Auto-escalation: complaints whose ETA has passed (uses configurable rules) ----
     if (action === "escalate_overdue") {
       const nowMs = Date.now();
+      // Load rules
+      const { data: rulesRow } = await supabase.from("escalation_rules").select("*").eq("id", 1).maybeSingle();
+      const rules = {
+        enabled: rulesRow?.enabled ?? true,
+        severity_bump_days: Math.max(0, Number(rulesRow?.severity_bump_days ?? 0)),
+        reroute_to_hokimiyat_days: Math.max(0, Number(rulesRow?.reroute_to_hokimiyat_days ?? 3)),
+        target_status: typeof rulesRow?.target_status === "string" ? rulesRow.target_status : "korib_chiqilmoqda",
+        max_severity: typeof rulesRow?.max_severity === "string" ? rulesRow.max_severity : "yuqori",
+      };
+      if (!rules.enabled) return json({ ok: true, escalated: 0, details: [], skipped: "disabled" });
+
       const { data: rows, error } = await supabase
         .from("complaints")
         .select("id, tracking_code, status, severity, routing_target, responsible_org, eta_days, created_at")
@@ -915,12 +926,16 @@ Deno.serve(async (req) => {
         .limit(2000);
       if (error) return json({ error: error.message }, 500);
 
-      const nextSeverity = (s: string | null) =>
-        s === "oddiy" ? "orta" : s === "orta" ? "yuqori" : s ?? "orta";
+      const sevOrder = ["oddiy", "orta", "yuqori"];
+      const maxIdx = Math.max(0, sevOrder.indexOf(rules.max_severity));
+      const bumpSeverity = (s: string | null) => {
+        const i = sevOrder.indexOf(s ?? "oddiy");
+        const next = Math.min(maxIdx, (i < 0 ? 0 : i) + 1);
+        return sevOrder[next];
+      };
       const escalateStatus = (s: string | null) => {
-        // Bump into "under review" if it's still early-stage
         const early = ["qabul_qilindi", "ai_tahlil", "mahallaga_yuborildi", "hokimiyatga_yuborildi", "yangi"];
-        return early.includes(s ?? "") ? "korib_chiqilmoqda" : s ?? "korib_chiqilmoqda";
+        return early.includes(s ?? "") ? rules.target_status : s ?? rules.target_status;
       };
 
       let escalated = 0;
@@ -935,10 +950,10 @@ Deno.serve(async (req) => {
         const oldStatus = r.status as string | null;
         const oldRoute = r.routing_target as string | null;
 
-        const newSev = nextSeverity(oldSev);
+        const shouldBumpSev = overdueDays >= rules.severity_bump_days;
+        const newSev = shouldBumpSev ? bumpSeverity(oldSev) : oldSev;
         const newStatus = escalateStatus(oldStatus);
-        // If mahalla-routed and overdue > 3 days, kick up to hokimiyat.
-        const newRoute = oldRoute === "mahalla" && overdueDays > 3 ? "hokimiyat" : oldRoute;
+        const newRoute = oldRoute === "mahalla" && overdueDays >= rules.reroute_to_hokimiyat_days ? "hokimiyat" : oldRoute;
 
         // Avoid duplicate escalation for the same day
         const since = new Date(nowMs - 20 * 60 * 60 * 1000).toISOString();
