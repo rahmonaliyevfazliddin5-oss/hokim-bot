@@ -163,6 +163,24 @@ export default function Submit() {
               ))}
             </div>
             <p className="text-sm">{result.response}</p>
+            <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
+              <div className="rounded-md border bg-background/50 px-2.5 py-1.5">
+                <div className="text-muted-foreground">Og'irlik</div>
+                <div className="font-semibold capitalize">{result.severity === "orta" ? "o'rta" : result.severity}</div>
+              </div>
+              <div className="rounded-md border bg-background/50 px-2.5 py-1.5">
+                <div className="text-muted-foreground">Yo'naltirildi</div>
+                <div className="font-semibold">{result.routing === "hokimiyat" ? "Hokimiyat" : "MFY"}</div>
+              </div>
+              <div className="rounded-md border bg-background/50 px-2.5 py-1.5 col-span-2">
+                <div className="text-muted-foreground">Mas'ul tashkilot</div>
+                <div className="font-semibold">{result.org}</div>
+              </div>
+              <div className="rounded-md border bg-background/50 px-2.5 py-1.5 col-span-2">
+                <div className="text-muted-foreground">Taxminiy muddat</div>
+                <div className="font-semibold">{result.etaLabel}</div>
+              </div>
+            </div>
           </div>
           <Button onClick={() => { setResult(null); setForm({ citizen_name: "", citizen_phone: "", mahalla: "", address: "", text: "" }); setImages([]); setCoords(null); }}>
             {t("submit.new_one")}
