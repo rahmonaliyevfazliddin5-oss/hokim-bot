@@ -16,6 +16,8 @@ const ADMIN_TTL_SECONDS = 60 * 60 * 8;        // 8 hours
 // Brute-force limits
 const RL_WINDOW_MIN = 15;
 const RL_MAX_FAILURES = 5;
+// Alert when failures reach this many (approaching threshold)
+const RL_ALERT_THRESHOLD = 3;
 
 const enc = new TextEncoder();
 
